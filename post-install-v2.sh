@@ -45,7 +45,7 @@ Uso:
   sudo ./post-install-v2.sh [opciones]
 
 Opciones:
-  --action <tipo>        install | check-fix | configure | reinstall | remove | remove-category | clean | clean-obsolete | optimize | updates-cron | logs | refs | health
+  --action <tipo>        install | check-fix | configure | reinstall | remove | remove-category | clean | clean-obsolete | clean-files | optimize | updates-cron | logs | refs | health
   --profile <nombre>     Perfil de uso del equipo
   --category <nombre>    Categoria para remove-category
   --mode <tipo>          full | utils | debug-clean
@@ -65,6 +65,7 @@ Ejemplos:
   sudo ./post-install-v2.sh --action remove --profile creator
   sudo ./post-install-v2.sh --action remove-category --category windows-compat
   sudo ./post-install-v2.sh --action clean --non-interactive
+  sudo ./post-install-v2.sh --action clean-files
   sudo ./post-install-v2.sh --action updates-cron
   sudo ./post-install-v2.sh --action logs
   sudo ./post-install-v2.sh --action refs
@@ -154,7 +155,7 @@ validate_profile() {
 
 validate_action() {
   case "${ACTION}" in
-    install|check-fix|configure|reinstall|remove|remove-category|clean|clean-obsolete|optimize|updates-cron|logs|refs|health)
+    install|check-fix|configure|reinstall|remove|remove-category|clean|clean-obsolete|clean-files|optimize|updates-cron|logs|refs|health)
       return 0
       ;;
     *)
@@ -185,15 +186,16 @@ show_action_menu_v2() {
   echo -e "  ${GREEN}[6]${NC} Eliminar por categoría"
   echo -e "  ${GREEN}[7]${NC} Limpieza general"
   echo -e "  ${GREEN}[8]${NC} Limpiar reemplazados"
-  echo -e "  ${GREEN}[9]${NC} Optimizar"
-  echo -e "  ${GREEN}[10]${NC} Actualizaciones + cron"
-  echo -e "  ${GREEN}[11]${NC} Ver logs"
-  echo -e "  ${GREEN}[12]${NC} Referencias oficiales"
-  echo -e "  ${GREEN}[13]${NC} Panel de salud"
+  echo -e "  ${GREEN}[9]${NC} Limpiar temporales/descargas"
+  echo -e "  ${GREEN}[10]${NC} Optimizar"
+  echo -e "  ${GREEN}[11]${NC} Actualizaciones + cron"
+  echo -e "  ${GREEN}[12]${NC} Ver logs"
+  echo -e "  ${GREEN}[13]${NC} Referencias oficiales"
+  echo -e "  ${GREEN}[14]${NC} Panel de salud"
   echo -e "  ${GRAY}[r]${NC} Regresar"
   echo -e "  ${YELLOW}[c]${NC} Cancelar"
   echo -e "  ${RED}[s]${NC} Salir"
-  echo -n -e "\n${CYAN}Opción [1-13,r,c,s]: ${NC}"
+  echo -n -e "\n${CYAN}Opción [1-14,r,c,s]: ${NC}"
 }
 
 interactive_wizard() {
@@ -215,11 +217,12 @@ interactive_wizard() {
           6) ACTION="remove-category"; step="category" ;;
           7) ACTION="clean"; return 0 ;;
           8) ACTION="clean-obsolete"; return 0 ;;
-          9) ACTION="optimize"; return 0 ;;
-          10) ACTION="updates-cron"; return 0 ;;
-          11) ACTION="logs"; return 0 ;;
-          12) ACTION="refs"; return 0 ;;
-          13) ACTION="health"; return 0 ;;
+          9) ACTION="clean-files"; return 0 ;;
+          10) ACTION="optimize"; return 0 ;;
+          11) ACTION="updates-cron"; return 0 ;;
+          12) ACTION="logs"; return 0 ;;
+          13) ACTION="refs"; return 0 ;;
+          14) ACTION="health"; return 0 ;;
           r) ;;
           c)
             log "WARN" "Asistente cancelado por usuario"
@@ -474,6 +477,40 @@ EOF
   log "OK" "Cron configurado: /etc/cron.d/debian-postinstall-v2-maintenance"
 }
 
+cleanup_temp_and_downloads_v2() {
+  section "Limpieza de temporales y descargas"
+
+  local downloads_dir="${TARGET_HOME}/Downloads"
+  local -a patterns=("*.deb" "*.AppImage" "*.iso" "*.zip" "*.tar" "*.tar.gz" "*.tar.xz" "*.tgz" "*.xz" "*.7z")
+  local removed=0
+
+  if ! confirm_or_continue "Se eliminaran instaladores temporales/descargados comunes. Continuar?"; then
+    log "SKIP" "Limpieza de archivos cancelada"
+    return 0
+  fi
+
+  run_cmd find /tmp -mindepth 1 -mtime +3 -delete || true
+  run_cmd find /var/tmp -mindepth 1 -mtime +7 -delete || true
+
+  if [[ -d "${downloads_dir}" ]]; then
+    local pattern file
+    shopt -s nullglob
+    for pattern in "${patterns[@]}"; do
+      for file in "${downloads_dir}"/${pattern}; do
+        run_cmd rm -f "${file}" && removed=$((removed + 1))
+      done
+    done
+    shopt -u nullglob
+
+    while IFS= read -r file; do
+      [[ -z "${file}" ]] && continue
+      run_cmd rm -f "${file}" && removed=$((removed + 1))
+    done < <(find "${downloads_dir}" -maxdepth 1 -type f \( -name '*.tmp' -o -name '*.part' -o -name '*.crdownload' \) -mtime +2 2>/dev/null)
+  fi
+
+  log "OK" "Archivos temporales/descargados eliminados: ${removed}"
+}
+
 show_official_references_v2() {
   section "Referencias oficiales"
   if [[ -f "${ROOT_DIR}/docs/OFFICIAL_REFERENCES.md" ]]; then
@@ -645,6 +682,9 @@ run_action() {
       section "Limpieza de reemplazados"
       module_debug_clean
       ;;
+    clean-files)
+      cleanup_temp_and_downloads_v2
+      ;;
     optimize)
       section "Optimizacion"
       module_system_core
@@ -681,7 +721,7 @@ main() {
   fi
 
   validate_action
-  if [[ "${ACTION}" != "clean" && "${ACTION}" != "clean-obsolete" && "${ACTION}" != "optimize" && "${ACTION}" != "updates-cron" && "${ACTION}" != "logs" && "${ACTION}" != "refs" && "${ACTION}" != "health" && "${ACTION}" != "remove-category" ]]; then
+  if [[ "${ACTION}" != "clean" && "${ACTION}" != "clean-obsolete" && "${ACTION}" != "clean-files" && "${ACTION}" != "optimize" && "${ACTION}" != "updates-cron" && "${ACTION}" != "logs" && "${ACTION}" != "refs" && "${ACTION}" != "health" && "${ACTION}" != "remove-category" ]]; then
     validate_profile
   fi
 
@@ -713,6 +753,7 @@ main() {
   log "INFO" "remove purga paquetes/apps del perfil"
   log "INFO" "clean elimina residuos y dependencias obsoletas"
   log "INFO" "clean-obsolete elimina paquetes reemplazados"
+  log "INFO" "clean-files elimina temporales y descargas de instaladores"
   log "INFO" "check-fix valida perfil/modulo y reinstala versión correctiva"
   log "INFO" "remove-category purga por categoria sin romper categorias compartidas"
   log "INFO" "optimize re-aplica optimizaciones base"

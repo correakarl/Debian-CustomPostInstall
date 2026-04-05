@@ -234,6 +234,14 @@ El flujo incluye limpieza de paquetes reemplazados por alternativas modernas y l
 Ejemplo aplicado:
 - mousepad se reemplaza por gedit.
 
+### Limpieza de temporales y descargas
+
+En V1 existe una opcion dedicada para limpieza post-instalacion:
+
+- borra entradas antiguas de `/tmp` y `/var/tmp`
+- elimina instaladores comunes no necesarios de `~/Downloads`
+- limpia descargas temporales incompletas (`.tmp`, `.part`, `.crdownload`)
+
 ### Actualizaciones y cron
 
 Existe una opcion para:

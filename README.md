@@ -56,6 +56,7 @@ sudo bash post-install.sh
 - [8] Eliminar por categoria (purga segura)
 - [9] Comprobar actualizaciones + configurar cron
 - [10] Referencias oficiales
+- [11] Limpiar temporales y descargas de instaladores
 
 Navegacion:
 
@@ -164,6 +165,7 @@ Navegacion en asistente:
 - remove-category: purga por categoria con proteccion de paquetes compartidos
 - clean: limpieza general de residuos
 - clean-obsolete: limpia paquetes reemplazados
+- clean-files: limpia temporales y descargas de instaladores no necesarios
 - optimize: reaplica optimizaciones base
 - updates-cron: revisa actualizaciones y configura cron de mantenimiento
 - logs: muestra ultimo log
@@ -261,6 +263,12 @@ sudo bash post-install-v2.sh --action refs
 ```
 
 En V1, el panel de salud se ejecuta desde la opcion [6] del menu principal.
+
+Limpieza de temporales/descargas (V1 opcion [11] y V2 accion `clean-files`):
+
+- limpia `/tmp` y `/var/tmp` de entradas antiguas
+- elimina instaladores comunes sobrantes en `~/Downloads` (`.deb`, `.AppImage`, `.iso`, `.zip`, `.tar.*`, etc.)
+- elimina descargas temporales incompletas (`.tmp`, `.part`, `.crdownload`)
 
 Chequeo de ZRAM mejorado en ambas versiones:
 

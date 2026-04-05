@@ -84,6 +84,7 @@ Acciones disponibles:
   remove-category - Purga por categoria sin romper categorias compartidas
   clean       - Limpieza de paquetes/artefactos no usados
   clean-obsolete - Eliminar paquetes reemplazados por opciones modernas
+  clean-files - Eliminar temporales y descargas de instaladores no necesarios
   optimize    - Reaplicar optimizaciones del sistema
   updates-cron - Comprobar actualizaciones y configurar cron de mantenimiento
   logs        - Mostrar ultimo registro de logs

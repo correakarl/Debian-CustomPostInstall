@@ -824,7 +824,7 @@ post_install_hooks() {
     systemctl daemon-reload &>/dev/null
     
     # Limpieza de paquetes
-    apt autoclean &>/dev/null
+    run_apt_with_repair apt autoclean
     
     # Actualizar base de datos de localizaciones
     updatedb &>/dev/null
@@ -1126,7 +1126,7 @@ deb http://deb.debian.org/debian/ trixie main contrib non-free non-free-firmware
 deb http://security.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
 deb http://deb.debian.org/debian/ trixie-updates main contrib non-free non-free-firmware
 EOF
-        apt update &>/dev/null
+        run_apt_with_repair apt update
         log_status "ok" "Repositorios Debian configurados con non-free-firmware"
     fi
     
@@ -1316,7 +1316,7 @@ setup_windows_compatibility() {
 
     # Garantizar arquitectura i386 para librerías Win32
     if ! dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
-        dpkg --add-architecture i386 &>/dev/null && apt update &>/dev/null
+        dpkg --add-architecture i386 &>/dev/null && run_apt_with_repair apt update
     fi
 
     # Instalar Bottles si no está presente
@@ -1755,10 +1755,11 @@ show_main_menu() {
     echo -e "  ${GREEN}[8]${NC} Eliminar por categoría (purga segura)"
     echo -e "  ${GREEN}[9]${NC} Comprobar actualizaciones + configurar cron"
     echo -e "  ${GREEN}[10]${NC} Referencias oficiales"
+    echo -e "  ${GREEN}[11]${NC} Limpiar temporales y descargas de instaladores"
     echo -e "  ${GRAY}[c]${NC} Cancelar operación actual"
     echo -e "  ${RED}[q]${NC} Salir inmediato"
     echo -e "  ${RED}[0]${NC} Salir y finalizar"
-    echo -n -e "\n${CYAN}Opción [0-10,c,q]: ${NC}"
+    echo -n -e "\n${CYAN}Opción [0-11,c,q]: ${NC}"
 }
 
 show_module_menu() {
@@ -2254,6 +2255,57 @@ EOF
     read -r
 }
 
+process_cleanup_temp_and_downloads() {
+    section_header "LIMPIEZA DE TEMPORALES Y DESCARGAS"
+
+    local downloads_dir="$USER_HOME/Downloads"
+    local -a patterns=("*.deb" "*.AppImage" "*.iso" "*.zip" "*.tar" "*.tar.gz" "*.tar.xz" "*.tgz" "*.xz" "*.7z")
+    local removed=0
+
+    echo -e "${YELLOW}Se eliminarán instaladores y artefactos temporales comunes de post-instalación.${NC}"
+    echo -e "${GRAY}No se eliminan documentos personales (pdf/doc/imagenes/proyectos).${NC}"
+    if ! $AUTO_CONFIRM; then
+        echo -n -e "${CYAN}Confirmar limpieza (s/N): ${NC}"
+        local confirm
+        read -r confirm
+        [[ "${confirm,,}" != "s" && "${confirm,,}" != "y" ]] && {
+            log_status "skip" "Limpieza de temporales cancelada por usuario"
+            return 0
+        }
+    fi
+
+    # Limpieza conservadora de /tmp y /var/tmp, evitando archivos recientes.
+    find /tmp -mindepth 1 -mtime +3 -print -delete 2>/dev/null | wc -l | {
+        read -r n
+        (( n > 0 )) && log_status "ok" "Entradas antiguas eliminadas en /tmp: $n"
+    }
+    find /var/tmp -mindepth 1 -mtime +7 -print -delete 2>/dev/null | wc -l | {
+        read -r n
+        (( n > 0 )) && log_status "ok" "Entradas antiguas eliminadas en /var/tmp: $n"
+    }
+
+    if [[ -d "$downloads_dir" ]]; then
+        local pattern file
+        shopt -s nullglob
+        for pattern in "${patterns[@]}"; do
+            for file in "$downloads_dir"/$pattern; do
+                rm -f "$file" 2>/dev/null && ((removed++)) || true
+            done
+        done
+        shopt -u nullglob
+    fi
+
+    if [[ -d "$downloads_dir" ]]; then
+        local old_tmp_count
+        old_tmp_count=$(find "$downloads_dir" -maxdepth 1 -type f \( -name "*.tmp" -o -name "*.part" -o -name "*.crdownload" \) -mtime +2 -print -delete 2>/dev/null | wc -l)
+        removed=$((removed + old_tmp_count))
+    fi
+
+    log_status "ok" "Archivos de descargas temporales/instaladores eliminados: $removed"
+    echo -e "${CYAN}Presione ENTER para continuar...${NC}"
+    read -r
+}
+
 show_official_references() {
     clear
     section_header "REFERENCIAS OFICIALES"
@@ -2448,6 +2500,7 @@ main_menu_loop() {
                 ;;
             9) process_updates_and_cron ;;
             10) show_official_references ;;
+            11) process_cleanup_temp_and_downloads ;;
             0)
                 post_install_hooks
                 show_final_dashboard

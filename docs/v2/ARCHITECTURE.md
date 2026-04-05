@@ -84,6 +84,7 @@ Consideraciones de perfiles:
 - remove-category: purga por categoria con proteccion de paquetes compartidos
 - clean: limpieza general de residuos
 - clean-obsolete: limpieza de paquetes reemplazados
+- clean-files: limpieza de temporales y descargas de instaladores no necesarios
 - optimize: reaplica tuning base
 - updates-cron: valida actualizaciones y configura cron de mantenimiento
 - logs: muestra ultimo log
