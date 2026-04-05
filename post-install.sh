@@ -143,11 +143,37 @@ mark_module_installed() {
     log_status "ok" "Módulo registrado: $module"
 }
 
+mark_module_removed() {
+    local module="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - REMOVED: $module" >> "$STATUSFILE"
+    unset 'INSTALLED_MODULES[$module]'
+    log_status "ok" "Módulo removido: $module"
+}
+
 is_module_installed() {
     local module="$1"
-    [[ "${INSTALLED_MODULES[$module]}" == "1" ]] && return 0
+    [[ "${INSTALLED_MODULES[$module]:-}" == "1" ]] && return 0
     grep -q "INSTALLED: $module" "$STATUSFILE" 2>/dev/null && return 0
     return 1
+}
+
+is_zram_active() {
+    systemctl is-active --quiet zramswap 2>/dev/null && return 0
+    systemctl is-active --quiet systemd-zram-setup@zram0 2>/dev/null && return 0
+    swapon --show 2>/dev/null | grep -q 'zram' && return 0
+    [[ -b /dev/zram0 ]] && return 0
+    return 1
+}
+
+ensure_zram_active() {
+    systemctl enable --now zramswap &>/dev/null || true
+    systemctl restart zramswap &>/dev/null || true
+    systemctl enable --now systemd-zram-setup@zram0 &>/dev/null || true
+    if is_zram_active; then
+        log_status "ok" "ZRAM activo"
+    else
+        log_status "fail" "ZRAM no pudo activarse automáticamente"
+    fi
 }
 
 # Obtener versión LTS de Node.js con fallback
@@ -833,9 +859,8 @@ apply_system_optimizations() {
 ZRAM_FRACTION=${RAM_LEVEL["zram_fraction"]}
 ZRAM_COMPRESSOR=lz4
 EOF
-        if systemctl restart zramswap &>/dev/null; then
-            log_status "ok" "ZRAM configurado (${RAM_LEVEL["zram_fraction"]} RAM, lz4)"
-        fi
+        ensure_zram_active
+        log_status "ok" "ZRAM configurado (${RAM_LEVEL["zram_fraction"]} RAM, lz4)"
     fi
     
     # EarlyOOM configuration
@@ -1287,7 +1312,7 @@ apply_minimal_optimizations() {
     # ZRAM aumentado
     if is_apt_installed "zram-tools" && [[ -f /etc/default/zramswap ]]; then
         echo -e "ZRAM_FRACTION=0.75\nZRAM_COMPRESSOR=lz4" > /etc/default/zramswap
-        systemctl restart zramswap &>/dev/null
+        ensure_zram_active
         log_status "ok" "ZRAM al 75% de RAM disponible"
     fi
     
@@ -1604,10 +1629,13 @@ show_main_menu() {
     echo -e "  ${GREEN}[5]${NC} Limpiar innecesarios (reemplazados)"
     echo -e "  ${GREEN}[6]${NC} Panel de salud"
     echo -e "  ${GREEN}[7]${NC} Aplicar UX/UI (Fake10 + Shortcuts)"
+    echo -e "  ${GREEN}[8]${NC} Eliminar por categoría (purga segura)"
+    echo -e "  ${GREEN}[9]${NC} Comprobar actualizaciones + configurar cron"
+    echo -e "  ${GREEN}[10]${NC} Referencias oficiales"
     echo -e "  ${GRAY}[c]${NC} Cancelar operación actual"
     echo -e "  ${RED}[q]${NC} Salir inmediato"
     echo -e "  ${RED}[0]${NC} Salir y finalizar"
-    echo -n -e "\n${CYAN}Opción [0-7,c,q]: ${NC}"
+    echo -n -e "\n${CYAN}Opción [0-10,c,q]: ${NC}"
 }
 
 show_module_menu() {
@@ -1729,7 +1757,7 @@ verify_functionality() {
     
     # ZRAM
     ((total++))
-    if systemctl is-active --quiet zramswap 2>/dev/null; then 
+    if is_zram_active; then 
         echo -e "  ${GREEN}✓${NC} ZRAM: activo"
         ((passed++))
     else 
@@ -1971,6 +1999,171 @@ process_cleanup_obsolete() {
     read -r
 }
 
+pkg_needed_by_other_installed_categories() {
+    local pkg="$1" current="$2"
+    local -n _mods="$3"
+    local -n _pkg_map="$4"
+
+    for i in "${!_mods[@]}"; do
+        local mod="${_mods[$i]}"
+        [[ "$mod" == "$current" ]] && continue
+        is_module_installed "$mod" || continue
+
+        local other_pkgs=()
+        [[ -n "${_pkg_map[$i]}" ]] && read -ra other_pkgs <<< "${_pkg_map[$i]}"
+        for p in "${other_pkgs[@]}"; do
+            if [[ "$p" == "$pkg" ]]; then
+                return 0
+            fi
+        done
+    done
+    return 1
+}
+
+flatpak_needed_by_other_installed_categories() {
+    local app_id="$1" current="$2"
+    for category in "${!FLATPAK_APPS[@]}"; do
+        [[ "$category" == "$current" ]] && continue
+        is_module_installed "$category" || continue
+        for app in ${FLATPAK_APPS[$category]}; do
+            [[ "$app" == "$app_id" ]] && return 0
+        done
+    done
+    return 1
+}
+
+process_remove_category() {
+    local selection="$1"
+    IFS=',' read -ra SEL <<< "$selection"
+
+    local -a modules=(optimization browsers office multimedia dev_core dev_cli dev_web dev_containers dev_mobile communication virtualization hardware_drivers vpn_free design_graphic design_video design_3d gaming windows_compat cybersec remote monitoring backup security)
+    local -a module_packages=(
+        "" "${MODULE_BROWSERS[*]}" "${MODULE_OFFICE[*]}" "${MODULE_MULTIMEDIA[*]}"
+        "${MODULE_DEV_CORE[*]}" "${MODULE_DEV_CLI[*]}" "${MODULE_DEV_WEB[*]}"
+        "${MODULE_DEV_CONTAINERS[*]}" "${MODULE_DEV_MOBILE[*]}" "${MODULE_COMMUNICATION[*]}" "${MODULE_VIRTUALIZATION[*]}" "${MODULE_HARDWARE_DRIVERS[*]}" "${MODULE_VPN_FREE[*]}" "${MODULE_DESIGN_GRAPHIC[*]}" "${MODULE_DESIGN_VIDEO[*]}"
+        "${MODULE_DESIGN_3D[*]}" "${MODULE_GAMING_NATIVE[*]}" "${MODULE_WINDOWS_COMPAT[*]}" "${MODULE_CYBERSEC[*]}"
+        "${MODULE_REMOTE[*]}" "${MODULE_MONITORING[*]}" "${MODULE_BACKUP[*]}" "${MODULE_SECURITY[*]}"
+    )
+
+    for idx in "${SEL[@]}"; do
+        idx=$((10#$idx - 1))
+        [[ $idx -lt 0 || $idx -ge ${#modules[@]} ]] && continue
+
+        local mod="${modules[$idx]}"
+        local pkgs=()
+        [[ -n "${module_packages[$idx]}" ]] && read -ra pkgs <<< "${module_packages[$idx]}"
+
+        section_header "[REMOVE] Purga segura: $mod"
+
+        for pkg in "${pkgs[@]}"; do
+            pkg_needed_by_other_installed_categories "$pkg" "$mod" modules module_packages && {
+                log_status "skip" "$pkg conservado (usado por otra categoría instalada)"
+                continue
+            }
+            if is_apt_installed "$pkg"; then
+                apt purge -y "$pkg" &>/dev/null && log_status "ok" "Purgado: $pkg"
+            fi
+        done
+
+        if cmd_exists flatpak && [[ -n "${FLATPAK_APPS[$mod]:-}" ]]; then
+            for app in ${FLATPAK_APPS[$mod]}; do
+                flatpak_needed_by_other_installed_categories "$app" "$mod" && {
+                    log_status "skip" "Flatpak conservado: $app (compartido)"
+                    continue
+                }
+                flatpak uninstall -y "$app" &>/dev/null && log_status "ok" "Flatpak purgado: $app"
+            done
+        fi
+
+        mark_module_removed "$mod"
+    done
+
+    apt autoremove -y &>/dev/null
+    apt clean &>/dev/null
+
+    log_status "ok" "Purga por categoría completada"
+    echo -e "${CYAN}Presione ENTER para continuar...${NC}"
+    read -r
+}
+
+process_updates_and_cron() {
+    section_header "ACTUALIZACIONES + CRON"
+
+    apt update &>/dev/null
+    local up_count
+    up_count=$(apt list --upgradable 2>/dev/null | tail -n +2 | wc -l)
+    log_status "ok" "Actualizaciones disponibles: $up_count"
+
+    local cron_script="/usr/local/bin/debian-postinstall-maintenance.sh"
+    cat <<'EOF' > "$cron_script"
+#!/usr/bin/env bash
+set -o errexit
+set -o nounset
+set -o pipefail
+LOGFILE="/var/log/debian-postinstall-cron.log"
+{
+  echo "[$(date '+%F %T')] === Maintenance check ==="
+  apt update -qq || true
+  updates=$(apt list --upgradable 2>/dev/null | tail -n +2 | wc -l)
+  echo "updates_available=$updates"
+  failed_units=$(systemctl --failed --no-legend 2>/dev/null | wc -l)
+  echo "failed_units=$failed_units"
+  if swapon --show 2>/dev/null | grep -q zram; then
+    echo "zram=active"
+  else
+    echo "zram=inactive"
+  fi
+  echo "---"
+} >> "$LOGFILE"
+EOF
+    chmod +x "$cron_script"
+
+    cat <<'EOF' > /etc/cron.d/debian-postinstall-maintenance
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+17 6 * * * root /usr/local/bin/debian-postinstall-maintenance.sh
+EOF
+    chmod 644 /etc/cron.d/debian-postinstall-maintenance
+
+    log_status "ok" "Cron configurado: /etc/cron.d/debian-postinstall-maintenance"
+    log_status "ok" "Script cron: $cron_script"
+    echo -e "${CYAN}Presione ENTER para continuar...${NC}"
+    read -r
+}
+
+show_official_references() {
+    clear
+    section_header "REFERENCIAS OFICIALES"
+    cat <<'EOF'
+Debian Documentation: https://www.debian.org/doc/
+Debian Packages: https://packages.debian.org/
+Debian Wiki: https://wiki.debian.org/
+
+VS Code Linux: https://code.visualstudio.com/docs/setup/linux
+Docker Engine: https://docs.docker.com/engine/install/debian/
+Podman Docs: https://podman.io/docs
+
+Flatpak Docs: https://docs.flatpak.org/
+Flathub: https://flathub.org/
+
+Bottles: https://docs.usebottles.com/
+WineHQ: https://wiki.winehq.org/
+
+Steam Linux: https://help.steampowered.com/
+ProtonUp-Qt: https://davidotek.github.io/protonup-qt/
+
+VirtualBox Manual: https://www.virtualbox.org/manual/
+libvirt Docs: https://libvirt.org/docs.html
+
+OpenVPN Community Docs: https://openvpn.net/community-resources/
+WireGuard Docs: https://www.wireguard.com/
+
+fwupd: https://fwupd.org/
+EOF
+    echo -e "\n${CYAN}Presione ENTER para continuar...${NC}"
+    read -r
+}
+
 # =============================================================================
 # DASHBOARD FINAL
 # =============================================================================
@@ -2115,6 +2308,23 @@ main_menu_loop() {
                 echo -e "${CYAN}Presione ENTER para continuar...${NC}"
                 read -r
                 ;;
+            8)
+                while true; do
+                    show_module_menu
+                    read -r sel
+                    case "$sel" in
+                        00|""|r|R|c|C) break ;;
+                        q|Q)
+                            post_install_hooks
+                            show_final_dashboard
+                            return
+                            ;;
+                        *) process_remove_category "$sel" ;;
+                    esac
+                done
+                ;;
+            9) process_updates_and_cron ;;
+            10) show_official_references ;;
             0)
                 post_install_hooks
                 show_final_dashboard

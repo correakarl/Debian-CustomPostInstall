@@ -87,7 +87,7 @@ EOF
   fi
 
   run_cmd sysctl -p
-  run_cmd systemctl restart zramswap || true
+  ensure_zram_active_v2
   run_cmd systemctl restart earlyoom || true
   run_cmd systemctl enable --now fstrim.timer || true
 }

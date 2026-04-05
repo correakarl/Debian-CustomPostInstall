@@ -202,12 +202,27 @@ En V1 existe una opcion dedicada para check and fix por categoria:
 - reinstala/repara
 - reaplica postconfiguraciones correctivas
 
+### Remove category (purga segura)
+
+En V1 se puede eliminar por categoria con proteccion de impacto:
+
+- purga paquetes del bloque seleccionado
+- evita purgar paquetes compartidos con categorias instaladas
+- limpia Flatpak asociado cuando no esta compartido
+
 ### Limpiar innecesarios
 
 El flujo incluye limpieza de paquetes reemplazados por alternativas modernas y limpieza de residuos del sistema.
 
 Ejemplo aplicado:
 - mousepad se reemplaza por gedit.
+
+### Actualizaciones y cron
+
+Existe una opcion para:
+
+- comprobar actualizaciones disponibles
+- configurar una tarea cron de mantenimiento con log
 
 ## Restriccion
 

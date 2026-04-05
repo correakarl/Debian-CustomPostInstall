@@ -44,8 +44,9 @@ Uso:
   sudo ./post-install-v2.sh [opciones]
 
 Opciones:
-  --action <tipo>        install | check-fix | configure | reinstall | remove | clean | clean-obsolete | optimize | logs | health
+  --action <tipo>        install | check-fix | configure | reinstall | remove | remove-category | clean | clean-obsolete | optimize | updates-cron | logs | refs | health
   --profile <nombre>     Perfil de uso del equipo
+  --category <nombre>    Categoria para remove-category
   --mode <tipo>          full | utils | debug-clean
   --profile-json <ruta>  JSON de comprobacion/personalizacion (estado deseado)
   --dry-run              Simula cambios
@@ -61,8 +62,11 @@ Ejemplos:
   sudo ./post-install-v2.sh --action configure --profile dev-web
   sudo ./post-install-v2.sh --action reinstall --profile gaming --mode full
   sudo ./post-install-v2.sh --action remove --profile creator
+  sudo ./post-install-v2.sh --action remove-category --category windows-compat
   sudo ./post-install-v2.sh --action clean --non-interactive
+  sudo ./post-install-v2.sh --action updates-cron
   sudo ./post-install-v2.sh --action logs
+  sudo ./post-install-v2.sh --action refs
   sudo ./post-install-v2.sh --action health
   sudo ./post-install-v2.sh --profile-json ./config/customization-profile.example.json --action health
 
@@ -74,6 +78,7 @@ EOF
 
 parse_args() {
   local force_interactive=false
+  CATEGORY="${CATEGORY:-}"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --action)
@@ -82,6 +87,10 @@ parse_args() {
         ;;
       --profile)
         PROFILE="$2"
+        shift 2
+        ;;
+      --category)
+        CATEGORY="$2"
         shift 2
         ;;
       --mode)
@@ -144,7 +153,7 @@ validate_profile() {
 
 validate_action() {
   case "${ACTION}" in
-    install|check-fix|configure|reinstall|remove|clean|clean-obsolete|optimize|logs|health)
+    install|check-fix|configure|reinstall|remove|remove-category|clean|clean-obsolete|optimize|updates-cron|logs|refs|health)
       return 0
       ;;
     *)
@@ -172,15 +181,18 @@ show_action_menu_v2() {
   echo -e "  ${GREEN}[3]${NC} Configurar"
   echo -e "  ${GREEN}[4]${NC} Reinstalar"
   echo -e "  ${GREEN}[5]${NC} Eliminar"
-  echo -e "  ${GREEN}[6]${NC} Limpieza general"
-  echo -e "  ${GREEN}[7]${NC} Limpiar reemplazados"
-  echo -e "  ${GREEN}[8]${NC} Optimizar"
-  echo -e "  ${GREEN}[9]${NC} Ver logs"
-  echo -e "  ${GREEN}[10]${NC} Panel de salud"
+  echo -e "  ${GREEN}[6]${NC} Eliminar por categoría"
+  echo -e "  ${GREEN}[7]${NC} Limpieza general"
+  echo -e "  ${GREEN}[8]${NC} Limpiar reemplazados"
+  echo -e "  ${GREEN}[9]${NC} Optimizar"
+  echo -e "  ${GREEN}[10]${NC} Actualizaciones + cron"
+  echo -e "  ${GREEN}[11]${NC} Ver logs"
+  echo -e "  ${GREEN}[12]${NC} Referencias oficiales"
+  echo -e "  ${GREEN}[13]${NC} Panel de salud"
   echo -e "  ${GRAY}[r]${NC} Regresar"
   echo -e "  ${YELLOW}[c]${NC} Cancelar"
   echo -e "  ${RED}[s]${NC} Salir"
-  echo -n -e "\n${CYAN}Opción [1-10,r,c,s]: ${NC}"
+  echo -n -e "\n${CYAN}Opción [1-13,r,c,s]: ${NC}"
 }
 
 interactive_wizard() {
@@ -199,11 +211,14 @@ interactive_wizard() {
           3) ACTION="configure"; step="profile" ;;
           4) ACTION="reinstall"; step="profile" ;;
           5) ACTION="remove"; step="profile" ;;
-          6) ACTION="clean"; return 0 ;;
-          7) ACTION="clean-obsolete"; return 0 ;;
-          8) ACTION="optimize"; return 0 ;;
-          9) ACTION="logs"; return 0 ;;
-          10) ACTION="health"; return 0 ;;
+          6) ACTION="remove-category"; step="category" ;;
+          7) ACTION="clean"; return 0 ;;
+          8) ACTION="clean-obsolete"; return 0 ;;
+          9) ACTION="optimize"; return 0 ;;
+          10) ACTION="updates-cron"; return 0 ;;
+          11) ACTION="logs"; return 0 ;;
+          12) ACTION="refs"; return 0 ;;
+          13) ACTION="health"; return 0 ;;
           r) ;;
           c)
             log "WARN" "Asistente cancelado por usuario"
@@ -267,6 +282,30 @@ interactive_wizard() {
           *) log "WARN" "Modo invalido, intenta nuevamente" ;;
         esac
         ;;
+
+      category)
+        clear
+        section "Seleccion de categoria"
+        echo "Categorias: system-core | dev-environments | gaming-native | windows-compat | virtualization | hardware-drivers | vpn-free"
+        echo "Comandos: r=regresar, c=cancelar, s=salir"
+        input="$(prompt_with_default "Categoria" "windows-compat")"
+        case "${input,,}" in
+          r) step="action" ;;
+          c)
+            log "WARN" "Asistente cancelado por usuario"
+            return 1
+            ;;
+          s)
+            log "INFO" "Saliendo por solicitud del usuario"
+            exit 0
+            ;;
+          system-core|dev-environments|gaming-native|windows-compat|virtualization|hardware-drivers|vpn-free)
+            CATEGORY="${input}"
+            return 0
+            ;;
+          *) log "WARN" "Categoria invalida, intenta nuevamente" ;;
+        esac
+        ;;
     esac
   done
 }
@@ -285,6 +324,145 @@ pre_cleanup_profile_defaults() {
       rm -f "${TARGET_HOME}/.config/gtk-3.0/settings.ini" 2>/dev/null || true
       ;;
   esac
+}
+
+validate_category() {
+  case "${CATEGORY}" in
+    system-core|dev-environments|gaming-native|windows-compat|virtualization|hardware-drivers|vpn-free)
+      return 0
+      ;;
+    *)
+      log "ERROR" "Categoria no soportada: ${CATEGORY}"
+      return 1
+      ;;
+  esac
+}
+
+v2_category_packages() {
+  local category="$1"
+  case "${category}" in
+    system-core)
+      echo "zram-tools earlyoom irqbalance tlp thermald fwupd"
+      ;;
+    dev-environments)
+      echo "code build-essential cmake ninja-build clang gdb valgrind docker-ce docker-ce-cli containerd.io docker-compose-plugin"
+      ;;
+    gaming-native)
+      echo "steam protonup-qt gamemode libgamemode0 mangohud vulkan-tools"
+      ;;
+    windows-compat)
+      echo "wine wine64 wine32 winetricks cabextract p7zip-full libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri libgl1-mesa-dri:i386"
+      ;;
+    virtualization)
+      echo "virtualbox qemu-kvm qemu-system libvirt-daemon-system virt-manager virtinst"
+      ;;
+    hardware-drivers)
+      echo "inxi lshw hwinfo pciutils usbutils dmidecode fwupd nvidia-detect firmware-linux-nonfree firmware-misc-nonfree"
+      ;;
+    vpn-free)
+      echo "openvpn wireguard-tools network-manager-openvpn network-manager-openvpn-gnome"
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
+}
+
+v2_category_flatpaks() {
+  local category="$1"
+  case "${category}" in
+    gaming-native)
+      echo "com.heroicgameslauncher.hgl net.lutris.Lutris com.valvesoftware.Steam net.davidotek.pupgui2"
+      ;;
+    windows-compat)
+      echo "com.usebottles.bottles"
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
+}
+
+v2_pkg_shared_with_other_categories() {
+  local pkg="$1" current="$2"
+  local categories=(system-core dev-environments gaming-native windows-compat virtualization hardware-drivers vpn-free)
+  for c in "${categories[@]}"; do
+    [[ "$c" == "$current" ]] && continue
+    for p in $(v2_category_packages "$c"); do
+      [[ "$p" == "$pkg" ]] && return 0
+    done
+  done
+  return 1
+}
+
+remove_category_packages_v2() {
+  section "Remove category (${CATEGORY})"
+  validate_category || exit 1
+
+  for pkg in $(v2_category_packages "${CATEGORY}"); do
+    v2_pkg_shared_with_other_categories "$pkg" "${CATEGORY}" && {
+      log "SKIP" "${pkg} conservado (compartido con otra categoria)"
+      continue
+    }
+    apt_purge_if_installed "$pkg"
+  done
+
+  for app in $(v2_category_flatpaks "${CATEGORY}"); do
+    remove_flatpak_app_if_installed "$app"
+  done
+
+  run_cmd apt autoremove -y
+  run_cmd apt clean
+  log "OK" "Purga por categoria completada: ${CATEGORY}"
+}
+
+process_updates_and_cron_v2() {
+  section "Actualizaciones + cron"
+  apt_update
+  local up_count
+  up_count=$(apt list --upgradable 2>/dev/null | tail -n +2 | wc -l)
+  log "OK" "Actualizaciones disponibles: ${up_count}"
+
+  local cron_script="/usr/local/bin/debian-postinstall-v2-maintenance.sh"
+  cat <<'EOF' > "${cron_script}"
+#!/usr/bin/env bash
+set -o errexit
+set -o nounset
+set -o pipefail
+LOGFILE="/var/log/debian-postinstall-v2-cron.log"
+{
+  echo "[$(date '+%F %T')] === V2 maintenance ==="
+  apt update -qq || true
+  updates=$(apt list --upgradable 2>/dev/null | tail -n +2 | wc -l)
+  echo "updates_available=$updates"
+  failed_units=$(systemctl --failed --no-legend 2>/dev/null | wc -l)
+  echo "failed_units=$failed_units"
+  if swapon --show 2>/dev/null | grep -q zram; then
+    echo "zram=active"
+  else
+    echo "zram=inactive"
+  fi
+  echo "---"
+} >> "$LOGFILE"
+EOF
+  chmod +x "${cron_script}"
+
+  cat <<'EOF' > /etc/cron.d/debian-postinstall-v2-maintenance
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+23 6 * * * root /usr/local/bin/debian-postinstall-v2-maintenance.sh
+EOF
+  chmod 644 /etc/cron.d/debian-postinstall-v2-maintenance
+  log "OK" "Cron configurado: /etc/cron.d/debian-postinstall-v2-maintenance"
+}
+
+show_official_references_v2() {
+  section "Referencias oficiales"
+  if [[ -f "${ROOT_DIR}/docs/OFFICIAL_REFERENCES.md" ]]; then
+    cat "${ROOT_DIR}/docs/OFFICIAL_REFERENCES.md"
+  else
+    log "WARN" "No se encontro docs/OFFICIAL_REFERENCES.md"
+  fi
 }
 
 check_and_fix_profile() {
@@ -382,7 +560,7 @@ health_panel_v2() {
   fi
 
   ((total++))
-  if systemctl is-active --quiet zramswap 2>/dev/null; then
+  if is_zram_active_v2; then
     log "OK" "ZRAM activo"
     ((passed++))
   else
@@ -438,6 +616,9 @@ run_action() {
     remove)
       remove_profile_packages
       ;;
+    remove-category)
+      remove_category_packages_v2
+      ;;
     clean)
       section "Limpieza"
       module_debug_clean
@@ -450,8 +631,14 @@ run_action() {
       section "Optimizacion"
       module_system_core
       ;;
+    updates-cron)
+      process_updates_and_cron_v2
+      ;;
     logs)
       show_log_tail 120
+      ;;
+    refs)
+      show_official_references_v2
       ;;
     health)
       health_panel_v2
@@ -475,8 +662,12 @@ main() {
   fi
 
   validate_action
-  if [[ "${ACTION}" != "clean" && "${ACTION}" != "clean-obsolete" && "${ACTION}" != "optimize" && "${ACTION}" != "logs" && "${ACTION}" != "health" ]]; then
+  if [[ "${ACTION}" != "clean" && "${ACTION}" != "clean-obsolete" && "${ACTION}" != "optimize" && "${ACTION}" != "updates-cron" && "${ACTION}" != "logs" && "${ACTION}" != "refs" && "${ACTION}" != "health" && "${ACTION}" != "remove-category" ]]; then
     validate_profile
+  fi
+
+  if [[ "${ACTION}" == "remove-category" ]]; then
+    validate_category || exit 1
   fi
 
   if ! preflight_checks; then
@@ -501,8 +692,11 @@ main() {
   log "INFO" "clean elimina residuos y dependencias obsoletas"
   log "INFO" "clean-obsolete elimina paquetes reemplazados"
   log "INFO" "check-fix valida perfil/modulo y reinstala versión correctiva"
+  log "INFO" "remove-category purga por categoria sin romper categorias compartidas"
   log "INFO" "optimize re-aplica optimizaciones base"
+  log "INFO" "updates-cron configura comprobacion periodica por cron"
   log "INFO" "logs muestra el ultimo registro"
+  log "INFO" "refs muestra referencias oficiales"
   log "INFO" "health muestra el panel de estado de salud"
   log "INFO" "Restriccion: este script no modifica ni reemplaza el kernel"
 

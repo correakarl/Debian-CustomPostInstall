@@ -53,6 +53,9 @@ sudo bash post-install.sh
 - [5] Limpiar innecesarios (reemplazados)
 - [6] Panel de salud
 - [7] Aplicar UX/UI
+- [8] Eliminar por categoria (purga segura)
+- [9] Comprobar actualizaciones + configurar cron
+- [10] Referencias oficiales
 
 Navegacion:
 
@@ -92,6 +95,12 @@ Navegacion:
 - Reinstala paquetes faltantes o necesarios.
 - Reaplica postconfiguraciones del modulo.
 - Cuando aplica, limpia preconfiguracion antes de instalar la version correctiva por defecto.
+
+### Eliminar por categoria en V1 (purga segura)
+
+- Purga el bloque de paquetes asociado a la categoria seleccionada.
+- Evita remover paquetes compartidos con otras categorias instaladas.
+- Purga Flatpak de la categoria cuando no esta compartido.
 
 ### Compatibilidad visible en consola (V1)
 
@@ -151,10 +160,13 @@ Navegacion en asistente:
 - configure: reaplica configuraciones
 - reinstall: remove + install
 - remove: elimina paquetes/apps del perfil
+- remove-category: purga por categoria con proteccion de paquetes compartidos
 - clean: limpieza general de residuos
 - clean-obsolete: limpia paquetes reemplazados
 - optimize: reaplica optimizaciones base
+- updates-cron: revisa actualizaciones y configura cron de mantenimiento
 - logs: muestra ultimo log
+- refs: muestra referencias oficiales
 - health: panel de estado de salud
 
 ### Compatibilidad visible en consola (V2)
@@ -236,9 +248,16 @@ Comandos utiles:
 ```bash
 sudo bash post-install-v2.sh --action logs
 sudo bash post-install-v2.sh --action health
+sudo bash post-install-v2.sh --action updates-cron
+sudo bash post-install-v2.sh --action refs
 ```
 
 En V1, el panel de salud se ejecuta desde la opcion [6] del menu principal.
+
+Chequeo de ZRAM mejorado en ambas versiones:
+
+- Verifica servicio y swap zram real.
+- Intenta activacion automatica cuando corresponde.
 
 ## Ejemplos practicos
 

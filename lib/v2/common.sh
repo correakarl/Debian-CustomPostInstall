@@ -53,6 +53,26 @@ show_log_tail() {
   tail -n "${lines}" "${latest}" || true
 }
 
+is_zram_active_v2() {
+  systemctl is-active --quiet zramswap 2>/dev/null && return 0
+  systemctl is-active --quiet systemd-zram-setup@zram0 2>/dev/null && return 0
+  swapon --show 2>/dev/null | grep -q zram && return 0
+  [[ -b /dev/zram0 ]] && return 0
+  return 1
+}
+
+ensure_zram_active_v2() {
+  run_cmd systemctl enable --now zramswap || true
+  run_cmd systemctl restart zramswap || true
+  run_cmd systemctl enable --now systemd-zram-setup@zram0 || true
+
+  if is_zram_active_v2; then
+    log "OK" "ZRAM activo"
+  else
+    log "WARN" "ZRAM sigue inactivo tras intentos de activacion"
+  fi
+}
+
 run_cmd() {
   if [[ "${DRY_RUN}" == "true" ]]; then
     log "DRY" "$*"

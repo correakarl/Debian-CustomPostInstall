@@ -81,10 +81,13 @@ Consideraciones de perfiles:
 - configure: reaplica configuraciones
 - reinstall: remove + install
 - remove: elimina paquetes/apps del perfil
+- remove-category: purga por categoria con proteccion de paquetes compartidos
 - clean: limpieza general de residuos
 - clean-obsolete: limpieza de paquetes reemplazados
 - optimize: reaplica tuning base
+- updates-cron: valida actualizaciones y configura cron de mantenimiento
 - logs: muestra ultimo log
+- refs: muestra referencias oficiales
 - health: panel de estado
 
 ## Compatibilidad y reglas visibles
@@ -95,6 +98,11 @@ La instalacion de paquetes evalua compatibilidad y muestra flags:
 - [COMPAT:BLOCK]
 
 Esto evita instalaciones no aptas por arquitectura o recursos en casos definidos.
+
+## Salud y ZRAM
+
+- Verificacion de salud incluye chequeo de ZRAM.
+- El flujo de optimizacion intenta activar ZRAM de forma robusta (servicio y swap zram).
 
 ## Compatibilidad Windows y gaming
 

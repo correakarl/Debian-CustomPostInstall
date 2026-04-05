@@ -81,10 +81,13 @@ Acciones disponibles:
   configure   - Reaplicar configuraciones (UX y ajustes base)
   reinstall   - Reinstalar perfil (remove + install)
   remove      - Borrar paquetes/apps del perfil
+  remove-category - Purga por categoria sin romper categorias compartidas
   clean       - Limpieza de paquetes/artefactos no usados
   clean-obsolete - Eliminar paquetes reemplazados por opciones modernas
   optimize    - Reaplicar optimizaciones del sistema
+  updates-cron - Comprobar actualizaciones y configurar cron de mantenimiento
   logs        - Mostrar ultimo registro de logs
+  refs        - Mostrar referencias oficiales
   health      - Mostrar panel de estado de salud
 EOF
 }
