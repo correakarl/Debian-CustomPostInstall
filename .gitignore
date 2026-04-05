@@ -1,0 +1,16 @@
+# Logs and runtime artifacts
+*.log
+*.tmp
+
+# Backup artifacts
+*.bak
+*.bak.*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Local shell history or cache
+*.swp
+*.swo
