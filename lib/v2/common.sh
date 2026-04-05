@@ -73,12 +73,60 @@ ensure_zram_active_v2() {
   fi
 }
 
+is_pkgmgr_command_v2() {
+  case "$1" in
+    apt|apt-get|dpkg)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+repair_package_manager_v2() {
+  log "WARN" "Fallo detectado en gestor de paquetes. Intentando autoreparacion..."
+
+  if command -v fuser >/dev/null 2>&1; then
+    if fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+       fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
+       fuser /var/cache/apt/archives/lock >/dev/null 2>&1; then
+      log "ERROR" "Lock activo de APT/DPKG. Cierra otro proceso y reintenta"
+      return 1
+    fi
+  fi
+
+  dpkg --configure -a >/dev/null 2>&1 || true
+  apt --fix-broken install -y >/dev/null 2>&1 || true
+  apt-get install -f -y >/dev/null 2>&1 || true
+  apt clean >/dev/null 2>&1 || true
+
+  if dpkg --audit | grep -q .; then
+    log "ERROR" "Autoreparacion incompleta: quedan paquetes con incidencias"
+    return 1
+  fi
+
+  log "OK" "Autoreparacion APT/DPKG completada"
+  return 0
+}
+
 run_cmd() {
   if [[ "${DRY_RUN}" == "true" ]]; then
     log "DRY" "$*"
     return 0
   fi
-  "$@"
+
+  if "$@"; then
+    return 0
+  fi
+
+  if is_pkgmgr_command_v2 "$1"; then
+    repair_package_manager_v2 || return 1
+    "$@"
+    return $?
+  fi
+
+  return 1
 }
 
 require_root() {
