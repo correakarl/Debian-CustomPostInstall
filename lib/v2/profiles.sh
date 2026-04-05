@@ -72,3 +72,17 @@ Perfiles disponibles:
   minimal      - Entorno minimo y liviano
 EOF
 }
+
+print_actions_help() {
+  cat <<'EOF'
+Acciones disponibles:
+  install     - Instalacion normal segun perfil/modo
+  configure   - Reaplicar configuraciones (UX y ajustes base)
+  reinstall   - Reinstalar perfil (remove + install)
+  remove      - Borrar paquetes/apps del perfil
+  clean       - Limpieza de paquetes/artefactos no usados
+  optimize    - Reaplicar optimizaciones del sistema
+  logs        - Mostrar ultimo registro de logs
+  health      - Mostrar panel de estado de salud
+EOF
+}

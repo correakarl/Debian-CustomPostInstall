@@ -11,16 +11,44 @@ DRY_RUN="${DRY_RUN:-false}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-false}"
 INSTALL_MODE="${INSTALL_MODE:-full}"
 PROFILE="${PROFILE:-workstation}"
+ACTION="${ACTION:-install}"
 
 TARGET_USER=""
 TARGET_HOME=""
 TOTAL_RAM_GB=4
 DESKTOP_ENV="unknown"
+LOG_DIR="/var/log"
+LOG_FILE=""
 
 log() {
   local level="$1"
   shift
   printf '[%s] %s\n' "$level" "$*"
+}
+
+section() {
+  printf '\n==== %s ====\n' "$1"
+}
+
+setup_logging() {
+  local ts
+  ts="$(date +%F-%H%M%S)"
+  LOG_FILE="${LOG_DIR}/debian-postinstall-v2-${ts}.log"
+  export LOG_FILE
+  exec > >(tee -a "${LOG_FILE}") 2>&1
+  log "OK" "Logging habilitado: ${LOG_FILE}"
+}
+
+show_log_tail() {
+  local lines="${1:-60}"
+  local latest
+  latest="$(ls -t ${LOG_DIR}/debian-postinstall-v2-*.log 2>/dev/null | head -n1 || true)"
+  if [[ -z "${latest}" ]]; then
+    log "WARN" "No se encontraron logs de V2 en ${LOG_DIR}"
+    return 0
+  fi
+  section "Ultimo log V2: ${latest}"
+  tail -n "${lines}" "${latest}" || true
 }
 
 run_cmd() {
@@ -128,6 +156,16 @@ apt_remove_if_installed() {
   run_cmd apt remove -y "${pkg}"
 }
 
+apt_purge_if_installed() {
+  local pkg="$1"
+  if ! pkg_installed "${pkg}"; then
+    log "SKIP" "${pkg} no instalado"
+    return 0
+  fi
+  log "INFO" "Purgando ${pkg}"
+  run_cmd apt purge -y "${pkg}"
+}
+
 ensure_flatpak() {
   apt_install flatpak
   if ! flatpak remote-list 2>/dev/null | grep -q '^flathub'; then
@@ -144,6 +182,22 @@ install_flatpak_app() {
   fi
   log "INFO" "Instalando Flatpak ${app_id}"
   run_cmd flatpak install -y --noninteractive flathub "${app_id}"
+}
+
+remove_flatpak_app_if_installed() {
+  local app_id="$1"
+  if ! command -v flatpak >/dev/null 2>&1; then
+    log "SKIP" "Flatpak no disponible"
+    return 0
+  fi
+
+  if ! flatpak list --app --columns=application 2>/dev/null | grep -q "^${app_id}$"; then
+    log "SKIP" "Flatpak ${app_id} no instalado"
+    return 0
+  fi
+
+  log "INFO" "Eliminando Flatpak ${app_id}"
+  run_cmd flatpak uninstall -y --noninteractive "${app_id}"
 }
 
 append_once() {
@@ -172,4 +226,22 @@ confirm_or_continue() {
     s|si|y|yes) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+prompt_with_default() {
+  local prompt_text="$1"
+  local default_value="$2"
+  local answer
+
+  if [[ "${NON_INTERACTIVE}" == "true" ]]; then
+    printf '%s\n' "${default_value}"
+    return 0
+  fi
+
+  read -r -p "${prompt_text} [${default_value}]: " answer
+  if [[ -z "${answer}" ]]; then
+    printf '%s\n' "${default_value}"
+  else
+    printf '%s\n' "${answer}"
+  fi
 }

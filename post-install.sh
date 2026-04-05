@@ -1452,7 +1452,7 @@ show_main_menu() {
     echo -e "  ${GREEN}[2]${NC} Instalar por MÓDULOS"
     echo -e "  ${GREEN}[3]${NC} Reconfigurar módulos"
     echo -e "  ${GREEN}[4]${NC} Limpieza y Purgar"
-    echo -e "  ${GREEN}[5]${NC} Verificar estado"
+    echo -e "  ${GREEN}[5]${NC} Panel de salud"
     echo -e "  ${GREEN}[6]${NC} Aplicar UX/UI (Fake10 + Shortcuts)"
     echo -e "  ${RED}[0]${NC} Salir y finalizar"
     echo -n -e "\n${CYAN}Opción [0-6]: ${NC}"
@@ -1524,6 +1524,8 @@ show_verification() {
         echo -e "  ${GREEN}+${NC} Sysctl" || echo -e "  ${RED}!${NC} Sysctl"
     systemctl is-active --quiet zramswap 2>/dev/null && \
         echo -e "  ${GREEN}+${NC} ZRAM" || echo -e "  ${RED}!${NC} ZRAM"
+
+    verify_functionality
     
     echo -e "\n${CYAN}Presione ENTER para continuar...${NC}"
     read -r
@@ -1599,6 +1601,28 @@ verify_functionality() {
     else
         echo -e "  ${RED}✗${NC} Conectividad: problemas de red"
     fi
+
+    # Espacio en disco / (umbral 85%)
+    ((total++))
+    local root_use
+    root_use=$(df -P / | awk 'NR==2 {gsub(/%/,"",$5); print $5}' 2>/dev/null || echo 100)
+    if [[ $root_use -lt 85 ]]; then
+        echo -e "  ${GREEN}✓${NC} Disco raíz: ${root_use}% usado"
+        ((passed++))
+    else
+        echo -e "  ${YELLOW}~${NC} Disco raíz: ${root_use}% usado (recomendado <85%)"
+    fi
+
+    # Servicios críticos (systemd)
+    ((total++))
+    local failed_units
+    failed_units=$(systemctl --failed --no-legend 2>/dev/null | wc -l)
+    if [[ $failed_units -eq 0 ]]; then
+        echo -e "  ${GREEN}✓${NC} Servicios systemd: sin fallos"
+        ((passed++))
+    else
+        echo -e "  ${YELLOW}~${NC} Servicios systemd con fallo: ${failed_units}"
+    fi
     
     echo -e "\n${BOLD}Resumen:${NC} $passed/$total verificaciones exitosas"
     if [[ $passed -eq $total ]]; then
@@ -1608,6 +1632,10 @@ verify_functionality() {
     else
         echo -e "${RED}✗ Sistema requiere atención${NC}"
     fi
+    echo -e "\n${BOLD}Guía rápida:${NC}"
+    echo -e "  1) Limpieza: ${WHITE}sudo apt autoremove -y && sudo apt clean${NC}"
+    echo -e "  2) Ver fallos de servicios: ${WHITE}systemctl --failed${NC}"
+    echo -e "  3) Reaplicar optimización: ${WHITE}opción [1]/[2] del menú${NC}"
     echo ""
 }
 

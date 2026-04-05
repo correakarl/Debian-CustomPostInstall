@@ -42,9 +42,15 @@ sudo bash post-install.sh
 ### 1.1) V2 por perfil (recomendado)
 
 ```bash
-sudo bash post-install-v2.sh --profile workstation --mode full
-sudo bash post-install-v2.sh --profile dev-web --mode full
-sudo bash post-install-v2.sh --profile gaming --mode full
+sudo bash post-install-v2.sh --action install --profile workstation --mode full
+sudo bash post-install-v2.sh --action install --profile dev-web --mode full
+sudo bash post-install-v2.sh --action install --profile gaming --mode full
+```
+
+Tambien puedes lanzar el asistente UX interactivo (sin argumentos):
+
+```bash
+sudo bash post-install-v2.sh
 ```
 
 Perfiles disponibles:
@@ -62,6 +68,17 @@ Modos disponibles:
 - full: optimizacion base + UX ligera + Bottles + perfil
 - utils: base + UX + utilidades minimas
 - debug-clean: limpia paquetes reemplazados y artefactos no usados
+
+Acciones disponibles:
+
+- install: instala segun perfil/modo
+- configure: reaplica configuraciones de UX/runtime
+- reinstall: borra perfil y reinstala
+- remove: purga paquetes/apps del perfil
+- clean: limpieza de residuos
+- optimize: reaplica optimizacion base del sistema
+- logs: muestra el ultimo log de ejecucion
+- health: muestra panel de estado de salud del sistema
 
 ### 2) Ejecucion modular
 
@@ -86,26 +103,28 @@ DRY_RUN=true sudo -E bash run-module.sh dev
 En V2 tambien puedes simular:
 
 ```bash
-DRY_RUN=true sudo -E bash post-install-v2.sh --profile dev-app --mode full --non-interactive
+DRY_RUN=true sudo -E bash post-install-v2.sh --action install --profile dev-app --mode full --non-interactive
 ```
 
-## Inicializar Git y subir cambios
+## Logs
 
-Si aun no esta inicializado:
+Cada ejecucion V2 guarda log en:
+
+- /var/log/debian-postinstall-v2-YYYY-MM-DD-HHMMSS.log
+
+Para ver el ultimo log desde el mismo script:
 
 ```bash
-git init
-git branch -M main
-git add .
-git commit -m "chore: init debian post-install project"
+sudo bash post-install-v2.sh --action logs
 ```
 
-Luego conecta remoto y sube:
+Para ver panel de salud en V2:
 
 ```bash
-git remote add origin <URL-DEL-REPO>
-git push -u origin main
+sudo bash post-install-v2.sh --action health
 ```
+
+Para ver panel de salud en V1, usa la opcion [5] del menu principal (Panel de salud).
 
 ## Nota
 
