@@ -49,7 +49,10 @@ install_base_optimization_packages() {
     curl wget ca-certificates gnupg apt-transport-https
     zram-tools earlyoom irqbalance tlp tlp-rdw thermald
     ufw fail2ban unattended-upgrades
-    jq yq
+    jq yq gedit
+    inxi lshw hwinfo pciutils usbutils dmidecode fwupd nvidia-detect
+    firmware-linux-nonfree firmware-misc-nonfree
+    openvpn wireguard-tools network-manager-openvpn network-manager-openvpn-gnome
   )
 
   for pkg in "${pkgs[@]}"; do

@@ -2,39 +2,62 @@
 
 ## Objetivo
 
-La V2 esta pensada para:
+La V2 se disena para operar Debian 13 con enfoque de ciclo de vida completo:
 
-- Optimizar Debian 13 a nivel de sistema base sin depender del entorno grafico.
-- Ofrecer una experiencia de personalizacion tipo Windows/Ubuntu con bajo consumo.
-- Soportar perfiles de uso (trabajo, desarrollo, gaming, creator, minimal).
-- Priorizar gaming nativo Linux y usar Bottles para compatibilidad Windows.
-- Incluir un modo de depuracion/limpieza para remover herramientas reemplazadas.
+- instalar por perfil y modo
+- verificar y corregir (check-fix)
+- reconfigurar o reinstalar
+- limpiar residuos y reemplazados
+- evaluar salud del sistema
 
-## Flujo principal
+Todo sin modificar ni reemplazar kernel.
 
-Script: [post-install-v2.sh](../../post-install-v2.sh)
+## Componentes principales
 
-1. Validacion de contexto (root, usuario objetivo, preflight).
-2. Seleccion de modo y perfil.
-3. Ejecucion de modulos:
-   - [modules/v2/10-system-core.sh](../../modules/v2/10-system-core.sh)
-   - [modules/v2/20-ux-light.sh](../../modules/v2/20-ux-light.sh)
-   - [modules/v2/30-compat-bottles.sh](../../modules/v2/30-compat-bottles.sh)
-   - [modules/v2/50-dev-environments.sh](../../modules/v2/50-dev-environments.sh)
-   - [modules/v2/40-gaming-native.sh](../../modules/v2/40-gaming-native.sh) (solo perfil gaming)
-   - [modules/v2/60-debug-clean.sh](../../modules/v2/60-debug-clean.sh) (modo debug-clean)
+- Orquestador: [post-install-v2.sh](../../post-install-v2.sh)
+- Utilidades base: [lib/v2/common.sh](../../lib/v2/common.sh)
+- Matriz de perfiles/acciones: [lib/v2/profiles.sh](../../lib/v2/profiles.sh)
+- Modulos:
+  - [modules/v2/10-system-core.sh](../../modules/v2/10-system-core.sh)
+  - [modules/v2/20-ux-light.sh](../../modules/v2/20-ux-light.sh)
+  - [modules/v2/30-compat-bottles.sh](../../modules/v2/30-compat-bottles.sh)
+  - [modules/v2/40-gaming-native.sh](../../modules/v2/40-gaming-native.sh)
+  - [modules/v2/50-dev-environments.sh](../../modules/v2/50-dev-environments.sh)
+  - [modules/v2/60-debug-clean.sh](../../modules/v2/60-debug-clean.sh)
+
+## Flujo operativo
+
+1. Preflight y contexto
+- root/sudo
+- usuario objetivo
+- checks basicos de red/espacio/comandos
+
+2. Seleccion de accion
+- via argumentos CLI o asistente interactivo
+
+3. Ejecucion de pipeline segun accion
+- instalacion, correccion, limpieza, health, logs
+
+4. Registro y salida
+- logging en /var/log/debian-postinstall-v2-*.log
 
 ## Perfiles
 
-Definidos en [lib/v2/profiles.sh](../../lib/v2/profiles.sh).
+Definidos en [lib/v2/profiles.sh](../../lib/v2/profiles.sh):
 
-- workstation: entorno general de productividad.
-- dev-web: web + contenedores + Node.
-- dev-app: escritorio/backend compilado.
-- dev-mobile: base mobile con ADB/Fastboot.
-- gaming: stack nativo Linux para juegos.
-- creator: multimedia y diseno.
-- minimal: entorno liviano.
+- workstation
+- dev-web
+- dev-app
+- dev-mobile
+- gaming
+- creator
+- minimal
+
+Consideraciones de perfiles:
+
+- VS Code se mantiene disponible para ambientes de desarrollo y creator/workstation donde se define.
+- VirtualBox se incluye en perfiles orientados a desarrollo/uso general.
+- Gaming incorpora ProtonUp-Qt para gestión de Proton GE.
 
 ## Modos
 
@@ -43,7 +66,7 @@ Definidos en [lib/v2/profiles.sh](../../lib/v2/profiles.sh).
   - ux-light
   - compat-bottles
   - dev-environments (segun perfil)
-  - gaming-native (si perfil gaming)
+  - gaming-native (solo gaming)
 - utils:
   - system-core
   - ux-light
@@ -51,22 +74,69 @@ Definidos en [lib/v2/profiles.sh](../../lib/v2/profiles.sh).
 - debug-clean:
   - debug-clean
 
-## Compatibilidad Windows y Gaming
+## Acciones
 
-- Bottles se instala como via recomendada para apps Windows no gaming.
-- Gaming prioriza Steam/Proton + Heroic + Lutris + MangoHud + gamemode.
-- Se evita usar Bottles como camino principal de gaming.
+- install: instala por perfil/modo
+- check-fix: limpieza preventiva de preconfig conflictiva + reinstalacion correctiva + postconfig
+- configure: reaplica configuraciones
+- reinstall: remove + install
+- remove: elimina paquetes/apps del perfil
+- clean: limpieza general de residuos
+- clean-obsolete: limpieza de paquetes reemplazados
+- optimize: reaplica tuning base
+- logs: muestra ultimo log
+- health: panel de estado
 
-## Consumo de recursos
+## Compatibilidad y reglas visibles
 
-- ZRAM y swappiness adaptativo segun RAM.
-- EarlyOOM, fstrim, ajustes sysctl de red/memoria.
-- UX ligera (GTK + iconos + aliases) sin capas pesadas en background.
+La instalacion de paquetes evalua compatibilidad y muestra flags:
 
-## Depuracion y limpieza
+- [COMPAT:OK]
+- [COMPAT:BLOCK]
 
-Modo [debug-clean](../../post-install-v2.sh) con:
+Esto evita instalaciones no aptas por arquitectura o recursos en casos definidos.
 
-- Remocion opcional de herramientas heredadas.
-- APT autoremove/autoclean.
-- Flatpak uninstall --unused.
+## Compatibilidad Windows y gaming
+
+El modulo [modules/v2/30-compat-bottles.sh](../../modules/v2/30-compat-bottles.sh) provee base de compatibilidad Windows:
+
+- Wine 64/32
+- Winetricks
+- librerias Vulkan/OpenGL i386
+- Bottles via Flatpak
+- ajustes base de permisos
+- ProtonUp-Qt para ajustes de Proton en entorno gaming
+
+## Hardware, drivers y VPN libre
+
+System-core incorpora utilidades de comprobacion/configuracion de hardware:
+
+- inxi, lshw, hwinfo, pciutils, usbutils, dmidecode
+- fwupd
+- firmware no libre (si aplica)
+
+Tambien incluye stack VPN cliente gratuito:
+
+- OpenVPN
+- WireGuard
+- Plugins de NetworkManager para OpenVPN
+
+Para gaming, la via principal sigue siendo nativa Linux:
+
+- Steam/Proton
+- Heroic
+- Lutris
+- MangoHud + gamemode
+
+## Optimizacion y consumo
+
+- ZRAM y swappiness adaptativo segun RAM
+- EarlyOOM
+- fstrim timer
+- ajustes sysctl de red/memoria
+- UX ligera para evitar carga innecesaria en background
+- reemplazo de editores legacy (mousepad) por gedit en flujo clean-obsolete
+
+## Restriccion de kernel
+
+La V2 no modifica ni reemplaza el kernel de Debian.

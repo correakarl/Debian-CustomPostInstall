@@ -1,0 +1,33 @@
+{
+  "name": "workstation-base",
+  "wanted": {
+    "packages": [
+      "curl",
+      "git",
+      "zram-tools",
+      "firefox-esr",
+      "flatpak"
+    ],
+    "flatpaks": [
+      "com.usebottles.bottles",
+      "md.obsidian.Obsidian"
+    ],
+    "services_enabled": [
+      "fstrim.timer",
+      "ssh"
+    ],
+    "files_exist": [
+      "~/.bashrc",
+      "~/.config/gtk-3.0/settings.ini"
+    ],
+    "sysctl": {
+      "vm.swappiness": "10",
+      "vm.vfs_cache_pressure": "50"
+    }
+  },
+  "blocked_packages": [
+    "snapd",
+    "tracker-miner-fs"
+  ],
+  "notes": "Duplica este archivo y ajusta segun tu objetivo (workstation/dev/gaming)."
+}

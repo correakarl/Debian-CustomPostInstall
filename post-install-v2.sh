@@ -6,10 +6,22 @@ set -o pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+readonly GREEN='\033[0;32m'
+readonly BLUE='\033[0;34m'
+readonly RED='\033[0;31m'
+readonly YELLOW='\033[1;33m'
+readonly CYAN='\033[0;36m'
+readonly WHITE='\033[1;37m'
+readonly GRAY='\033[0;90m'
+readonly NC='\033[0m'
+readonly BOLD='\033[1m'
+
 # shellcheck source=lib/v2/common.sh
 source "${ROOT_DIR}/lib/v2/common.sh"
 # shellcheck source=lib/v2/profiles.sh
 source "${ROOT_DIR}/lib/v2/profiles.sh"
+# shellcheck source=lib/profile-json.sh
+source "${ROOT_DIR}/lib/profile-json.sh"
 
 # shellcheck source=modules/v2/10-system-core.sh
 source "${ROOT_DIR}/modules/v2/10-system-core.sh"
@@ -32,9 +44,10 @@ Uso:
   sudo ./post-install-v2.sh [opciones]
 
 Opciones:
-  --action <tipo>        install | configure | reinstall | remove | clean | optimize | logs | health
+  --action <tipo>        install | check-fix | configure | reinstall | remove | clean | clean-obsolete | optimize | logs | health
   --profile <nombre>     Perfil de uso del equipo
   --mode <tipo>          full | utils | debug-clean
+  --profile-json <ruta>  JSON de comprobacion/personalizacion (estado deseado)
   --dry-run              Simula cambios
   --non-interactive      No hace preguntas
   --interactive          Fuerza menu guiado
@@ -44,12 +57,18 @@ Opciones:
 
 Ejemplos:
   sudo ./post-install-v2.sh --action install --profile workstation --mode full
+  sudo ./post-install-v2.sh --action check-fix --profile workstation --mode full
   sudo ./post-install-v2.sh --action configure --profile dev-web
   sudo ./post-install-v2.sh --action reinstall --profile gaming --mode full
   sudo ./post-install-v2.sh --action remove --profile creator
   sudo ./post-install-v2.sh --action clean --non-interactive
   sudo ./post-install-v2.sh --action logs
   sudo ./post-install-v2.sh --action health
+  sudo ./post-install-v2.sh --profile-json ./config/customization-profile.example.json --action health
+
+Modo interactivo:
+  En el asistente puedes usar:
+  r = regresar | c = cancelar | s = salir
 EOF
 }
 
@@ -67,6 +86,10 @@ parse_args() {
         ;;
       --mode)
         INSTALL_MODE="$2"
+        shift 2
+        ;;
+      --profile-json)
+        PROFILE_JSON="$2"
         shift 2
         ;;
       --dry-run)
@@ -121,7 +144,7 @@ validate_profile() {
 
 validate_action() {
   case "${ACTION}" in
-    install|configure|reinstall|remove|clean|optimize|logs|health)
+    install|check-fix|configure|reinstall|remove|clean|clean-obsolete|optimize|logs|health)
       return 0
       ;;
     *)
@@ -133,50 +156,161 @@ validate_action() {
 }
 
 show_banner() {
-  cat <<'EOF'
-=============================================================
- Debian Post Install V2 - UX asistida
-=============================================================
-EOF
+  clear
+  echo -e "${BLUE}╔════════════════════════════════════════════════════╗${NC}"
+  echo -e "${BOLD}${WHITE}  DEBIAN POST-INSTALL V2 - MENU PRINCIPAL        ${NC}"
+  echo -e "${BLUE}╚════════════════════════════════════════════════════╝${NC}"
+  echo -e "${CYAN}Perfil actual:${NC} ${PROFILE} | ${CYAN}Modo:${NC} ${INSTALL_MODE}"
+  echo -e "${CYAN}Acción actual:${NC} ${ACTION} | ${CYAN}Dry-run:${NC} ${DRY_RUN}"
+}
+
+show_action_menu_v2() {
+  echo ""
+  echo -e "${BOLD}Seleccione una opción:${NC}"
+  echo -e "  ${GREEN}[1]${NC} Instalar"
+  echo -e "  ${GREEN}[2]${NC} Check and Fix"
+  echo -e "  ${GREEN}[3]${NC} Configurar"
+  echo -e "  ${GREEN}[4]${NC} Reinstalar"
+  echo -e "  ${GREEN}[5]${NC} Eliminar"
+  echo -e "  ${GREEN}[6]${NC} Limpieza general"
+  echo -e "  ${GREEN}[7]${NC} Limpiar reemplazados"
+  echo -e "  ${GREEN}[8]${NC} Optimizar"
+  echo -e "  ${GREEN}[9]${NC} Ver logs"
+  echo -e "  ${GREEN}[10]${NC} Panel de salud"
+  echo -e "  ${GRAY}[r]${NC} Regresar"
+  echo -e "  ${YELLOW}[c]${NC} Cancelar"
+  echo -e "  ${RED}[s]${NC} Salir"
+  echo -n -e "\n${CYAN}Opción [1-10,r,c,s]: ${NC}"
 }
 
 interactive_wizard() {
-  section "Asistente interactivo"
-  echo "Selecciona una accion para continuar:"
-  echo "  1) install"
-  echo "  2) configure"
-  echo "  3) reinstall"
-  echo "  4) remove"
-  echo "  5) clean"
-  echo "  6) optimize"
-  echo "  7) logs"
-  echo "  8) health"
+  local step="action"
+  local input
 
-  local action_opt
-  action_opt="$(prompt_with_default "Opcion" "1")"
-  case "${action_opt}" in
-    1) ACTION="install" ;;
-    2) ACTION="configure" ;;
-    3) ACTION="reinstall" ;;
-    4) ACTION="remove" ;;
-    5) ACTION="clean" ;;
-    6) ACTION="optimize" ;;
-    7) ACTION="logs" ;;
-    8) ACTION="health" ;;
-    *) ACTION="install" ;;
+  while true; do
+    case "${step}" in
+      action)
+        show_banner
+        show_action_menu_v2
+        read -r input
+        case "${input,,}" in
+          1) ACTION="install"; step="profile" ;;
+          2) ACTION="check-fix"; step="profile" ;;
+          3) ACTION="configure"; step="profile" ;;
+          4) ACTION="reinstall"; step="profile" ;;
+          5) ACTION="remove"; step="profile" ;;
+          6) ACTION="clean"; return 0 ;;
+          7) ACTION="clean-obsolete"; return 0 ;;
+          8) ACTION="optimize"; return 0 ;;
+          9) ACTION="logs"; return 0 ;;
+          10) ACTION="health"; return 0 ;;
+          r) ;;
+          c)
+            log "WARN" "Asistente cancelado por usuario"
+            return 1
+            ;;
+          s)
+            log "INFO" "Saliendo por solicitud del usuario"
+            exit 0
+            ;;
+          *)
+            log "WARN" "Opcion invalida, intenta nuevamente"
+            ;;
+        esac
+        ;;
+
+      profile)
+        clear
+        section "Seleccion de perfil"
+        print_profiles_help
+        echo ""
+        echo "Comandos: r=regresar, c=cancelar, s=salir"
+        input="$(prompt_with_default "Perfil" "${PROFILE}")"
+        case "${input,,}" in
+          r) step="action" ;;
+          c)
+            log "WARN" "Asistente cancelado por usuario"
+            return 1
+            ;;
+          s)
+            log "INFO" "Saliendo por solicitud del usuario"
+            exit 0
+            ;;
+          workstation|dev-web|dev-app|dev-mobile|gaming|creator|minimal)
+            PROFILE="${input}"
+            step="mode"
+            ;;
+          *) log "WARN" "Perfil invalido, intenta nuevamente" ;;
+        esac
+        ;;
+
+      mode)
+        clear
+        section "Seleccion de modo"
+        echo "Modos: full | utils | debug-clean"
+        echo "Comandos: r=regresar, c=cancelar, s=salir"
+        input="$(prompt_with_default "Modo" "${INSTALL_MODE}")"
+        case "${input,,}" in
+          r) step="profile" ;;
+          c)
+            log "WARN" "Asistente cancelado por usuario"
+            return 1
+            ;;
+          s)
+            log "INFO" "Saliendo por solicitud del usuario"
+            exit 0
+            ;;
+          full|utils|debug-clean)
+            INSTALL_MODE="${input}"
+            return 0
+            ;;
+          *) log "WARN" "Modo invalido, intenta nuevamente" ;;
+        esac
+        ;;
+    esac
+  done
+}
+
+pre_cleanup_profile_defaults() {
+  local profile="$1"
+
+  # Nunca cambiar kernel: solo limpieza de preconfig de usuario y app runtime.
+  case "${profile}" in
+    workstation|dev-web|dev-app|dev-mobile|gaming|creator|minimal)
+      local bottles_dir="${TARGET_HOME}/.var/app/com.usebottles.bottles"
+      if [[ -d "${bottles_dir}" ]]; then
+        rm -rf "${bottles_dir}" 2>/dev/null || true
+        log "OK" "Preconfiguracion Bottles limpiada para fix correctivo"
+      fi
+      rm -f "${TARGET_HOME}/.config/gtk-3.0/settings.ini" 2>/dev/null || true
+      ;;
   esac
+}
 
-  if [[ "${ACTION}" == "clean" || "${ACTION}" == "optimize" || "${ACTION}" == "logs" || "${ACTION}" == "health" ]]; then
-    return 0
+check_and_fix_profile() {
+  section "Check and Fix (${PROFILE})"
+  pre_cleanup_profile_defaults "${PROFILE}"
+
+  local apt_list
+  apt_list="$(profile_packages_apt "${PROFILE}")"
+  local flatpak_list
+  flatpak_list="$(profile_packages_flatpak "${PROFILE}")"
+
+  # Reinstalacion correctiva del perfil
+  for pkg in ${apt_list}; do
+    apt_reinstall "${pkg}"
+  done
+
+  if [[ -n "${flatpak_list}" ]]; then
+    ensure_flatpak
+    for app in ${flatpak_list}; do
+      remove_flatpak_app_if_installed "${app}"
+      install_flatpak_app "${app}"
+    done
   fi
 
-  section "Seleccion de perfil"
-  print_profiles_help
-  PROFILE="$(prompt_with_default "Perfil" "${PROFILE}")"
-
-  section "Seleccion de modo"
-  echo "Modos: full | utils | debug-clean"
-  INSTALL_MODE="$(prompt_with_default "Modo" "${INSTALL_MODE}")"
+  # Reaplicar post-configuraciones del stack completo por modo.
+  run_install_mode
 }
 
 remove_profile_packages() {
@@ -288,6 +422,9 @@ run_action() {
     install)
       run_install_mode
       ;;
+    check-fix)
+      check_and_fix_profile
+      ;;
     configure)
       section "Configuracion"
       module_ux_light
@@ -303,6 +440,10 @@ run_action() {
       ;;
     clean)
       section "Limpieza"
+      module_debug_clean
+      ;;
+    clean-obsolete)
+      section "Limpieza de reemplazados"
       module_debug_clean
       ;;
     optimize)
@@ -327,11 +468,14 @@ main() {
   check_debian_version
 
   if [[ $# -eq 0 && "${NON_INTERACTIVE}" == "false" ]]; then
-    interactive_wizard
+    if ! interactive_wizard; then
+      log "WARN" "Proceso cancelado por el usuario"
+      exit 0
+    fi
   fi
 
   validate_action
-  if [[ "${ACTION}" != "clean" && "${ACTION}" != "optimize" && "${ACTION}" != "logs" && "${ACTION}" != "health" ]]; then
+  if [[ "${ACTION}" != "clean" && "${ACTION}" != "clean-obsolete" && "${ACTION}" != "optimize" && "${ACTION}" != "logs" && "${ACTION}" != "health" ]]; then
     validate_profile
   fi
 
@@ -339,6 +483,11 @@ main() {
     if ! confirm_or_continue "Preflight con errores. Deseas continuar?"; then
       exit 1
     fi
+  fi
+
+  if [[ -n "${PROFILE_JSON:-}" ]]; then
+    section "Auditoria JSON de estado deseado"
+    json_profile_audit "${PROFILE_JSON}" "${TARGET_HOME}"
   fi
 
   log "INFO" "${V2_NAME} v${V2_VERSION}"
@@ -350,9 +499,12 @@ main() {
   log "INFO" "configure reaplica ajustes de UX y runtime"
   log "INFO" "remove purga paquetes/apps del perfil"
   log "INFO" "clean elimina residuos y dependencias obsoletas"
+  log "INFO" "clean-obsolete elimina paquetes reemplazados"
+  log "INFO" "check-fix valida perfil/modulo y reinstala versión correctiva"
   log "INFO" "optimize re-aplica optimizaciones base"
   log "INFO" "logs muestra el ultimo registro"
   log "INFO" "health muestra el panel de estado de salud"
+  log "INFO" "Restriccion: este script no modifica ni reemplaza el kernel"
 
   run_action
 

@@ -10,22 +10,22 @@ profile_packages_apt() {
   local profile="$1"
   case "${profile}" in
     workstation)
-      echo "firefox-esr libreoffice-writer libreoffice-calc thunderbird"
+      echo "code firefox-esr libreoffice-writer libreoffice-calc thunderbird gedit virtualbox openvpn wireguard-tools network-manager-openvpn network-manager-openvpn-gnome"
       ;;
     dev-web)
       echo "code build-essential git-lfs gh ripgrep fd-find fzf httpie docker-ce docker-ce-cli containerd.io docker-compose-plugin"
       ;;
     dev-app)
-      echo "code build-essential cmake ninja-build clang gdb valgrind openjdk-21-jdk maven gradle"
+      echo "code build-essential cmake ninja-build clang gdb valgrind openjdk-21-jdk maven gradle virtualbox"
       ;;
     dev-mobile)
       echo "code openjdk-21-jdk android-sdk-platform-tools-adb android-sdk-platform-tools-common fastboot qemu-kvm"
       ;;
     gaming)
-      echo "steam gamemode libgamemode0 mangohud vulkan-tools mesa-vulkan-drivers libgl1-mesa-dri"
+      echo "steam protonup-qt gamemode libgamemode0 mangohud vulkan-tools mesa-vulkan-drivers libgl1-mesa-dri"
       ;;
     creator)
-      echo "gimp inkscape krita blender kdenlive audacity ffmpeg obs-studio"
+      echo "code gimp inkscape krita blender kdenlive audacity ffmpeg obs-studio gedit"
       ;;
     minimal)
       echo "neovim htop tmux curl wget git"
@@ -49,7 +49,7 @@ profile_packages_flatpak() {
       echo "com.google.AndroidStudio"
       ;;
     gaming)
-      echo "com.heroicgameslauncher.hgl net.lutris.Lutris com.valvesoftware.Steam org.freedesktop.Platform.VulkanLayer.MangoHud"
+      echo "com.heroicgameslauncher.hgl net.lutris.Lutris com.valvesoftware.Steam net.davidotek.pupgui2 org.freedesktop.Platform.VulkanLayer.MangoHud"
       ;;
     creator)
       echo "com.obsproject.Studio"
@@ -77,10 +77,12 @@ print_actions_help() {
   cat <<'EOF'
 Acciones disponibles:
   install     - Instalacion normal segun perfil/modo
+  check-fix   - Verifica modulo/perfil y reinstala con configuracion correctiva
   configure   - Reaplicar configuraciones (UX y ajustes base)
   reinstall   - Reinstalar perfil (remove + install)
   remove      - Borrar paquetes/apps del perfil
   clean       - Limpieza de paquetes/artefactos no usados
+  clean-obsolete - Eliminar paquetes reemplazados por opciones modernas
   optimize    - Reaplicar optimizaciones del sistema
   logs        - Mostrar ultimo registro de logs
   health      - Mostrar panel de estado de salud

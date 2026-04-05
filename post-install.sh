@@ -40,11 +40,19 @@ declare -A INSTALLED_MODULES=() LEVEL_SELECTED=() RAM_LEVEL=()
 readonly LOGFILE="/var/log/debian-postinstall-$(date +%F-%H%M).log"
 readonly STATUSFILE="/var/log/debian-postinstall-status.log"
 readonly BACKUP_DIR="/root/.omni-backup"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Flags de control
 DRY_RUN=false
 VERBOSE=false
 AUTO_CONFIRM=false
+PROFILE_JSON=""
+
+# Libreria de auditoria de perfil JSON (opcional)
+if [[ -f "${SCRIPT_DIR}/lib/profile-json.sh" ]]; then
+    # shellcheck source=lib/profile-json.sh
+    source "${SCRIPT_DIR}/lib/profile-json.sh"
+fi
 
 # Usuario y entorno (definir ANTES de cualquier uso)
 if [[ $EUID -ne 0 ]]; then
@@ -73,6 +81,7 @@ readonly DESKTOP_ENV="${XDG_CURRENT_DESKTOP:-unknown}"
 # -----------------------------------------------------------------------------
 readonly TOTAL_RAM_GB=$(free -g 2>/dev/null | awk '/^Mem:/{print $2}' || echo "4")
 readonly CPU_CORES=$(nproc 2>/dev/null || echo "2")
+readonly SYSTEM_ARCH=$(dpkg --print-architecture 2>/dev/null || echo "amd64")
 readonly GPU_VENDOR=$(lspci -nn 2>/dev/null | grep -iE 'vga|3d|display' | head -1 | grep -oiE 'nvidia|amd|intel' | tr '[:upper:]' '[:lower:]' || echo "unknown")
 readonly IS_LOW_RAM=$([[ $TOTAL_RAM_GB -lt 4 ]] && echo "true" || echo "false")
 
@@ -192,6 +201,7 @@ show_spinner() {
 # Instalación APT con progreso
 install_with_progress() {
     local pkg="$1" desc="${2:-$pkg}"
+    local compat_reason=""
     
     if $DRY_RUN; then
         log_msg "[DRY-RUN] Instalaría: $desc"
@@ -202,6 +212,13 @@ install_with_progress() {
         log_status "skip" "$desc (ya instalado)"
         return 0
     fi
+
+    if ! check_package_compatibility "$pkg" compat_reason; then
+        log_status "skip" "[COMPAT:BLOCK] $desc - $compat_reason"
+        return 0
+    else
+        log_msg "[COMPAT:OK] $desc"
+    fi
     
     if show_spinner "Instalando $desc..." apt install -y "$pkg"; then
         log_status "ok" "$desc"
@@ -210,6 +227,33 @@ install_with_progress() {
         log_status "fail" "$desc"
         return 1
     fi
+}
+
+# Verificación de compatibilidad por paquete con flag visible.
+check_package_compatibility() {
+    local pkg="$1"
+    local __reason_var="$2"
+    local reason=""
+
+    case "$pkg" in
+        steam|microsoft-edge-stable|google-chrome-stable|opera-stable|wine32|libvulkan1:i386|mesa-vulkan-drivers:i386|libgl1-mesa-dri:i386)
+            if [[ "$SYSTEM_ARCH" != "amd64" ]]; then
+                reason="requiere arquitectura amd64"
+                printf -v "$__reason_var" '%s' "$reason"
+                return 1
+            fi
+            ;;
+        blender|kdenlive|obs-studio)
+            if [[ $TOTAL_RAM_GB -lt 4 ]]; then
+                reason="recomendado >= 4GB RAM"
+                printf -v "$__reason_var" '%s' "$reason"
+                return 1
+            fi
+            ;;
+    esac
+
+    printf -v "$__reason_var" '%s' "compatible"
+    return 0
 }
 
 # Instalación Flatpak con progreso
@@ -319,6 +363,9 @@ parse_flags() {
             --help|-h)
                 show_help
                 exit 0 ;;
+            --profile-json)
+                PROFILE_JSON="$2"
+                shift 2 ;;
             *)
                 shift ;;
         esac
@@ -335,12 +382,14 @@ OPCIONES:
   -n, --dry-run     Simular sin ejecutar cambios
   -v, --verbose     Trazabilidad completa (debug)
   -y, --auto        Confirmar automáticamente prompts
+    --profile-json    Ruta a JSON de auditoría de personalización/comprobación
   -h, --help        Mostrar ayuda
 
 EJEMPLOS:
   sudo ./post-install.sh                    # Instalación normal
   sudo ./post-install.sh --dry-run          # Probar sin instalar
   sudo ./post-install.sh -v -y              # Auto + verbose
+    sudo ./post-install.sh --profile-json ./config/customization-profile.example.json
 
 NOTAS:
   • Logs: /var/log/debian-postinstall-*.log
@@ -866,7 +915,7 @@ FONTCONF_EOF
 # Base universal (siempre instalada)
 readonly UNIVERSAL_BASE=(
     curl wget git ca-certificates gnupg apt-transport-https 
-    neovim htop less tree bash-completion zip unzip p7zip-full 
+    neovim gedit htop less tree bash-completion zip unzip p7zip-full 
     tar zstd net-tools dnsutils iputils-ping traceroute 
     ufw fail2ban unattended-upgrades 
     fonts-firacode fonts-noto fonts-noto-color-emoji fontconfig 
@@ -878,14 +927,20 @@ readonly UNIVERSAL_BASE=(
 readonly MODULE_BROWSERS=(firefox-esr google-chrome-stable microsoft-edge-stable opera-stable)
 readonly MODULE_OFFICE=(libreoffice-writer libreoffice-calc libreoffice-impress evince okular thunderbird)
 readonly MODULE_MULTIMEDIA=(vlc mpv ffmpeg libavcodec-extra)
-readonly MODULE_DEV_CORE=(build-essential pkg-config libssl-dev git-lfs gh terminator tmux)
+readonly MODULE_DEV_CORE=(code build-essential pkg-config libssl-dev git-lfs gh terminator tmux)
 readonly MODULE_DEV_CLI=(fzf ripgrep fd-find bat exa httpie mkcert)
 readonly MODULE_DEV_WEB=(code docker-ce docker-ce-cli containerd.io docker-compose-plugin)
 readonly MODULE_DEV_CONTAINERS=(podman podman-docker kubectl helm)
+readonly MODULE_DEV_MOBILE=(adb fastboot scrcpy)
 readonly MODULE_DESIGN_GRAPHIC=(gimp inkscape krita fontforge)
 readonly MODULE_DESIGN_VIDEO=(kdenlive audacity obs-studio handbrake-cli)
 readonly MODULE_DESIGN_3D=(blender freecad)
-readonly MODULE_GAMING_NATIVE=(steam heroic-games-launcher retroarch vulkan-tools libvulkan1 mesa-vulkan-drivers libgl1-mesa-dri gamemode libgamemode0 mangohud glxinfo mesa-utils preload)
+readonly MODULE_GAMING_NATIVE=(steam heroic-games-launcher retroarch protonup-qt vulkan-tools libvulkan1 mesa-vulkan-drivers libgl1-mesa-dri gamemode libgamemode0 mangohud glxinfo mesa-utils preload)
+readonly MODULE_WINDOWS_COMPAT=(wine wine64 wine32 winetricks cabextract p7zip-full libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri libgl1-mesa-dri:i386)
+readonly MODULE_COMMUNICATION=(telegram-desktop signal-desktop)
+readonly MODULE_VIRTUALIZATION=(qemu-system libvirt-daemon-system virt-manager virtinst virtualbox)
+readonly MODULE_HARDWARE_DRIVERS=(inxi lshw hwinfo pciutils usbutils dmidecode fwupd nvidia-detect firmware-linux-nonfree firmware-misc-nonfree)
+readonly MODULE_VPN_FREE=(openvpn wireguard-tools network-manager-openvpn network-manager-openvpn-gnome)
 readonly MODULE_CYBERSEC=(nmap wireshark tcpdump netcat-openbsd socat lynis nikto hashcat john gpg)
 readonly MODULE_REMOTE=(openssh-server openssh-client sshuttle mosh vsftpd lftp tigervnc-standalone-server rsync rclone syncthing)
 readonly MODULE_MONITORING=(netdata iotop iftop nethogs psensor smartmontools)
@@ -896,7 +951,8 @@ readonly MODULE_SECURITY=(auditd apparmor-utils chkrootkit rkhunter)
 readonly -A FLATPAK_APPS=(
     ["multimedia"]="com.spotify.Client"
     ["communication"]="com.discordapp.Discord md.obsidian.Obsidian io.github.mimbrero.WhatsAppDesktop"
-    ["gaming"]="com.heroicgameslauncher.hgl"
+    ["gaming"]="com.heroicgameslauncher.hgl net.davidotek.pupgui2"
+    ["windows_compat"]="com.usebottles.bottles"
 )
 
 # =============================================================================
@@ -1032,6 +1088,15 @@ configure_module_post_install() {
             # Fix para apps Electron (Discord/Spotify)
             setup_electron_apps_fix
             ;;
+        "windows_compat")
+            setup_windows_compatibility
+            ;;
+        "hardware_drivers")
+            setup_hardware_diagnostics
+            ;;
+        "vpn_free")
+            setup_vpn_free_profiles
+            ;;
         "remote")
             # SSH Server hardening básico
             if is_apt_installed "openssh-server"; then
@@ -1046,6 +1111,90 @@ configure_module_post_install() {
             fi
             ;;
     esac
+}
+
+setup_hardware_diagnostics() {
+    log_msg "Configurando utilidades de hardware y drivers no nativos..."
+
+    local report_file="$USER_HOME/.hardware-driver-report.txt"
+    {
+        echo "=== Hardware/Drivers Report ==="
+        echo "Fecha: $(date)"
+        echo "Arquitectura: $(dpkg --print-architecture 2>/dev/null)"
+        echo ""
+        echo "-- CPU --"
+        lscpu 2>/dev/null | grep -E 'Model name|CPU\(s\)|Vendor ID' || true
+        echo ""
+        echo "-- GPU --"
+        lspci -nn 2>/dev/null | grep -Ei 'vga|3d|display' || true
+        echo ""
+        echo "-- USB --"
+        lsusb 2>/dev/null || true
+        echo ""
+        echo "-- Firmware packages --"
+        dpkg -l 2>/dev/null | grep -E 'firmware-linux|firmware-misc-nonfree|nvidia-detect|fwupd' || true
+    } > "$report_file"
+
+    chown "$SUDO_USER:$SUDO_USER" "$report_file"
+    log_status "ok" "Reporte de hardware generado: $report_file"
+}
+
+setup_vpn_free_profiles() {
+    log_msg "Configurando base VPN gratuita (OpenVPN/WireGuard)..."
+
+    local vpn_notes="$USER_HOME/.vpn-free-notes.txt"
+    cat <<'EOF' > "$vpn_notes"
+VPN libre configurada (cliente):
+
+Incluye:
+- OpenVPN
+- WireGuard
+- Plugins NetworkManager para OpenVPN
+
+Proveedores con plan gratuito compatibles mediante config OpenVPN/WireGuard:
+- ProtonVPN Free (archivos de configuración)
+- Windscribe Free (según disponibilidad regional)
+
+Recomendación:
+1) Importar archivo .ovpn o perfil WireGuard en NetworkManager.
+2) Probar conectividad con: curl ifconfig.me
+EOF
+    chown "$SUDO_USER:$SUDO_USER" "$vpn_notes"
+    log_status "ok" "Guía VPN gratuita creada: $vpn_notes"
+}
+
+setup_windows_compatibility() {
+    log_msg "Aplicando configuración de compatibilidad Windows (Bottles/Wine)..."
+
+    # Garantizar arquitectura i386 para librerías Win32
+    if ! dpkg --print-foreign-architectures 2>/dev/null | grep -q "i386"; then
+        dpkg --add-architecture i386 &>/dev/null && apt update &>/dev/null
+    fi
+
+    # Instalar Bottles si no está presente
+    if cmd_exists "flatpak"; then
+        flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo &>/dev/null
+        install_flatpak_with_progress "com.usebottles.bottles" "Bottles (compatibilidad Windows)"
+
+        # Permisos recomendados para mayor compatibilidad de apps Windows
+        sudo -u "$SUDO_USER" flatpak override --user --filesystem=home --share=network --socket=x11 --socket=wayland com.usebottles.bottles &>/dev/null
+        log_status "ok" "Bottles configurado con permisos base recomendados"
+    else
+        log_status "fail" "Flatpak no disponible para instalar Bottles"
+    fi
+
+    # Nota rápida para el usuario
+    cat <<'EOF' > "$USER_HOME/.bottles-compat-notes.txt"
+Bottles/Wine habilitado para compatibilidad Windows.
+
+Recomendación:
+1) Usar perfil 'Application' para apps de productividad.
+2) Instalar dependencias runtime desde la misma botella (DXVK, VC++ runtimes, .NET) según app.
+3) Para juegos, priorizar Steam/Proton, Heroic o Lutris antes de Bottles.
+EOF
+    chown "$SUDO_USER:$SUDO_USER" "$USER_HOME/.bottles-compat-notes.txt"
+
+    log_status "ok" "Compatibilidad Windows configurada (Wine + Bottles + ajustes base)"
 }
 
 # Instalación de FNM + Node.js LTS + pnpm
@@ -1448,25 +1597,17 @@ show_main_menu() {
     $DRY_RUN && echo -e "${YELLOW}⚠ MODO DRY-RUN: Solo simulación${NC}"
     echo ""
     echo -e "${BOLD}Seleccione una opción:${NC}"
-    echo -e "  ${GREEN}[1]${NC} Instalar por NIVEL"
-    echo -e "  ${GREEN}[2]${NC} Instalar por MÓDULOS"
-    echo -e "  ${GREEN}[3]${NC} Reconfigurar módulos"
-    echo -e "  ${GREEN}[4]${NC} Limpieza y Purgar"
-    echo -e "  ${GREEN}[5]${NC} Panel de salud"
-    echo -e "  ${GREEN}[6]${NC} Aplicar UX/UI (Fake10 + Shortcuts)"
+    echo -e "  ${GREEN}[1]${NC} Instalar por CATEGORÍAS"
+    echo -e "  ${GREEN}[2]${NC} Check and Fix por categoría"
+    echo -e "  ${GREEN}[3]${NC} Reconfigurar categoría"
+    echo -e "  ${GREEN}[4]${NC} Limpieza general"
+    echo -e "  ${GREEN}[5]${NC} Limpiar innecesarios (reemplazados)"
+    echo -e "  ${GREEN}[6]${NC} Panel de salud"
+    echo -e "  ${GREEN}[7]${NC} Aplicar UX/UI (Fake10 + Shortcuts)"
+    echo -e "  ${GRAY}[c]${NC} Cancelar operación actual"
+    echo -e "  ${RED}[q]${NC} Salir inmediato"
     echo -e "  ${RED}[0]${NC} Salir y finalizar"
-    echo -n -e "\n${CYAN}Opción [0-6]: ${NC}"
-}
-
-show_level_menu() {
-    clear
-    section_header "INSTALACIÓN POR NIVEL"
-    echo -e "${BOLD}Seleccione el nivel:${NC}\n"
-    echo -e "  ${GREEN}[1] Básico${NC}    - Navegadores, ofimática, esenciales"
-    echo -e "  ${YELLOW}[2] Intermedio${NC} - +VS Code, Docker, herramientas dev"
-    echo -e "  ${RED}[3] Avanzado${NC}   - +Gaming, diseño, monitoreo completo"
-    echo -e "\n  ${GRAY}[0] Volver${NC}"
-    echo -n -e "\n${CYAN}Nivel [0-3]: ${NC}"
+    echo -n -e "\n${CYAN}Opción [0-7,c,q]: ${NC}"
 }
 
 show_module_menu() {
@@ -1478,13 +1619,13 @@ show_module_menu() {
     local -a modules=(
         "Optimización del Sistema" "Navegadores" "Ofimática" "Multimedia" 
         "Dev Core" "Dev CLI" "Dev Web (VS Code)" "Dev Contenedores" 
-        "Diseño Gráfico" "Diseño Video" "Diseño 3D" "Gaming Nativo" 
-        "Ciberseguridad" "Acceso Remoto" "Monitoreo" "Backup" "Seguridad"
+        "Dev Mobile" "Comunicación" "Virtualización" "Hardware/Drivers" "VPN Libre" "Diseño Gráfico" "Diseño Video" "Diseño 3D" "Gaming Nativo"
+        "Compatibilidad Windows (Bottles/Wine)" "Ciberseguridad" "Acceso Remoto" "Monitoreo" "Backup" "Seguridad"
     )
     local -a ids=(
         optimization browsers office multimedia dev_core dev_cli 
-        dev_web dev_containers design_graphic design_video design_3d 
-        gaming cybersec remote monitoring backup security
+        dev_web dev_containers dev_mobile communication virtualization hardware_drivers vpn_free design_graphic design_video design_3d 
+        gaming windows_compat cybersec remote monitoring backup security
     )
     
     for i in "${!modules[@]}"; do
@@ -1492,8 +1633,10 @@ show_module_menu() {
         is_module_installed "${ids[$i]}" && status="${GREEN}(instalado)${NC}"
         printf "  ${GREEN}[%2d]${NC} %s %s\n" $((i+1)) "$status" "${modules[$i]}"
     done
-    echo -e "\n  ${GRAY}[00] Volver${NC}"
-    echo -n -e "\n${CYAN}Módulos [00-17]: ${NC}"
+    echo -e "\n  ${GRAY}[00] Volver / Regresar${NC}"
+    echo -e "  ${GRAY}[c] Cancelar${NC}"
+    echo -e "  ${RED}[q] Salir${NC}"
+    echo -n -e "\n${CYAN}Categorías [00-23,c,q]: ${NC}"
 }
 
 show_verification() {
@@ -1643,41 +1786,16 @@ verify_functionality() {
 # PROCESAMIENTO DE MENÚ
 # =============================================================================
 
-process_level_install() {
-    local level="$1"
-    local packages=()
-    
-    case "$level" in
-        1) packages=("${MODULE_BROWSERS[@]}" "${MODULE_OFFICE[@]}" "${MODULE_MULTIMEDIA[@]}") ;;
-        2) packages=("${MODULE_BROWSERS[@]}" "${MODULE_OFFICE[@]}" "${MODULE_MULTIMEDIA[@]}" "${MODULE_DEV_CORE[@]}" "${MODULE_DEV_CLI[@]}" "${MODULE_DEV_WEB[@]}") ;;
-        3) packages=("${MODULE_BROWSERS[@]}" "${MODULE_OFFICE[@]}" "${MODULE_MULTIMEDIA[@]}" "${MODULE_DEV_CORE[@]}" "${MODULE_DEV_CLI[@]}" "${MODULE_DEV_WEB[@]}" "${MODULE_DESIGN_VIDEO[@]}" "${MODULE_GAMING_NATIVE[@]}" "${MODULE_MONITORING[@]}") ;;
-        *) return 1 ;;
-    esac
-    
-    # Aplicar optimizaciones minimalistas si es necesario
-    $IS_LOW_RAM && apply_minimal_optimizations
-    
-    # Instalar base universal primero
-    install_universal_base
-    
-    # Instalar paquetes del nivel
-    install_module "level_${level}" "${packages[@]}"
-    
-    echo -e "${GREEN}✓ Nivel $level completado${NC}"
-    echo -e "${CYAN}Presione ENTER para continuar...${NC}"
-    read -r
-}
-
 process_module_install() {
     local selection="$1"
     IFS=',' read -ra SEL <<< "$selection"
     
-    local -a modules=(optimization browsers office multimedia dev_core dev_cli dev_web dev_containers design_graphic design_video design_3d gaming cybersec remote monitoring backup security)
+    local -a modules=(optimization browsers office multimedia dev_core dev_cli dev_web dev_containers dev_mobile communication virtualization hardware_drivers vpn_free design_graphic design_video design_3d gaming windows_compat cybersec remote monitoring backup security)
     local -a module_packages=(
         "" "${MODULE_BROWSERS[*]}" "${MODULE_OFFICE[*]}" "${MODULE_MULTIMEDIA[*]}" 
         "${MODULE_DEV_CORE[*]}" "${MODULE_DEV_CLI[*]}" "${MODULE_DEV_WEB[*]}" 
-        "${MODULE_DEV_CONTAINERS[*]}" "${MODULE_DESIGN_GRAPHIC[*]}" "${MODULE_DESIGN_VIDEO[*]}" 
-        "${MODULE_DESIGN_3D[*]}" "${MODULE_GAMING_NATIVE[*]}" "${MODULE_CYBERSEC[*]}" 
+        "${MODULE_DEV_CONTAINERS[*]}" "${MODULE_DEV_MOBILE[*]}" "${MODULE_COMMUNICATION[*]}" "${MODULE_VIRTUALIZATION[*]}" "${MODULE_HARDWARE_DRIVERS[*]}" "${MODULE_VPN_FREE[*]}" "${MODULE_DESIGN_GRAPHIC[*]}" "${MODULE_DESIGN_VIDEO[*]}" 
+        "${MODULE_DESIGN_3D[*]}" "${MODULE_GAMING_NATIVE[*]}" "${MODULE_WINDOWS_COMPAT[*]}" "${MODULE_CYBERSEC[*]}"
         "${MODULE_REMOTE[*]}" "${MODULE_MONITORING[*]}" "${MODULE_BACKUP[*]}" "${MODULE_SECURITY[*]}"
     )
     
@@ -1720,7 +1838,7 @@ process_reinstall() {
     local selection="$1"
     IFS=',' read -ra SEL <<< "$selection"
     
-    local -a modules=(optimization browsers office multimedia dev_core dev_cli dev_web dev_containers design_graphic design_video design_3d gaming cybersec remote monitoring backup security)
+    local -a modules=(optimization browsers office multimedia dev_core dev_cli dev_web dev_containers dev_mobile communication virtualization hardware_drivers vpn_free design_graphic design_video design_3d gaming windows_compat cybersec remote monitoring backup security)
     
     for idx in "${SEL[@]}"; do
         idx=$((10#$idx - 1))
@@ -1745,6 +1863,66 @@ process_reinstall() {
     read -r
 }
 
+pre_cleanup_module_defaults() {
+    local module="$1"
+
+    case "$module" in
+        windows_compat)
+            local bottles_dir="$USER_HOME/.var/app/com.usebottles.bottles"
+            if [[ -d "$bottles_dir" ]]; then
+                rm -rf "$bottles_dir" 2>/dev/null
+                log_status "ok" "Preconfiguración Bottles limpiada para reinstalación correctiva"
+            fi
+            ;;
+        optimization)
+            sed -i '/# OMNI-OPTIMIZER: Optimizaciones de kernel/,+4d' /etc/sysctl.conf 2>/dev/null || true
+            log_status "ok" "Preconfiguración de optimización limpiada"
+            ;;
+    esac
+}
+
+process_check_and_fix() {
+    local selection="$1"
+    IFS=',' read -ra SEL <<< "$selection"
+
+    local -a modules=(optimization browsers office multimedia dev_core dev_cli dev_web dev_containers dev_mobile communication virtualization hardware_drivers vpn_free design_graphic design_video design_3d gaming windows_compat cybersec remote monitoring backup security)
+    local -a module_packages=(
+        "" "${MODULE_BROWSERS[*]}" "${MODULE_OFFICE[*]}" "${MODULE_MULTIMEDIA[*]}"
+        "${MODULE_DEV_CORE[*]}" "${MODULE_DEV_CLI[*]}" "${MODULE_DEV_WEB[*]}"
+        "${MODULE_DEV_CONTAINERS[*]}" "${MODULE_DEV_MOBILE[*]}" "${MODULE_COMMUNICATION[*]}" "${MODULE_VIRTUALIZATION[*]}" "${MODULE_HARDWARE_DRIVERS[*]}" "${MODULE_VPN_FREE[*]}" "${MODULE_DESIGN_GRAPHIC[*]}" "${MODULE_DESIGN_VIDEO[*]}"
+        "${MODULE_DESIGN_3D[*]}" "${MODULE_GAMING_NATIVE[*]}" "${MODULE_WINDOWS_COMPAT[*]}" "${MODULE_CYBERSEC[*]}"
+        "${MODULE_REMOTE[*]}" "${MODULE_MONITORING[*]}" "${MODULE_BACKUP[*]}" "${MODULE_SECURITY[*]}"
+    )
+
+    install_universal_base
+
+    for idx in "${SEL[@]}"; do
+        idx=$((10#$idx - 1))
+        [[ $idx -lt 0 || $idx -ge ${#modules[@]} ]] && continue
+
+        local mod="${modules[$idx]}"
+        local pkgs_str="${module_packages[$idx]}"
+        local pkgs=()
+        [[ -n "$pkgs_str" ]] && read -ra pkgs <<< "$pkgs_str"
+
+        section_header "[CHECK&FIX] $mod"
+        pre_cleanup_module_defaults "$mod"
+
+        for pkg in "${pkgs[@]}"; do
+            install_with_progress "$pkg" "check: $mod:$pkg"
+        done
+
+        configure_module_post_install "$mod"
+        post_install_hooks
+        mark_module_installed "$mod"
+        log_status "ok" "Check and Fix completado: $mod"
+    done
+
+    echo -e "${GREEN}✓ Check and Fix finalizado${NC}"
+    echo -e "${CYAN}Presione ENTER para continuar...${NC}"
+    read -r
+}
+
 process_purge() {
     echo -e "${YELLOW}Limpieza general...${NC}"
     
@@ -1762,6 +1940,33 @@ process_purge() {
     journalctl --vacuum-time=7d &>/dev/null
     
     log_status "ok" "Limpieza completada"
+    echo -e "${CYAN}Presione ENTER para continuar...${NC}"
+    read -r
+}
+
+process_cleanup_obsolete() {
+    section_header "LIMPIEZA DE INNECESARIOS (REEMPLAZADOS)"
+
+    # Nunca tocar kernel: solo paquetes de usuario/herramientas.
+    local obsolete_pkgs=(exa mousepad)
+
+    # Instalar reemplazo sugerido cuando aplique
+    install_with_progress "eza" "Reemplazo moderno para exa"
+    install_with_progress "gedit" "Reemplazo de editor de texto (mousepad -> gedit)"
+
+    for pkg in "${obsolete_pkgs[@]}"; do
+        if is_apt_installed "$pkg"; then
+            apt purge -y "$pkg" &>/dev/null && \
+            log_status "ok" "Paquete obsoleto eliminado: $pkg"
+        else
+            log_status "skip" "Paquete obsoleto no presente: $pkg"
+        fi
+    done
+
+    apt autoremove -y &>/dev/null
+    apt clean &>/dev/null
+
+    log_status "ok" "Limpieza de innecesarios completada"
     echo -e "${CYAN}Presione ENTER para continuar...${NC}"
     read -r
 }
@@ -1848,27 +2053,39 @@ main_menu_loop() {
         
         case "$main_opt" in
             1)
-                while true; do
-                    show_level_menu
-                    read -r level_opt
-                    case "$level_opt" in
-                        1|2|3)
-                            process_level_install "$level_opt"
-                            break
-                            ;;
-                        0) break ;;
-                        *) echo -e "${YELLOW}Opción no válida${NC}"; sleep 1 ;;
-                    esac
-                done
-                ;;
-            2)
-                install_universal_base
+                local base_ready=false
                 while true; do
                     show_module_menu
                     read -r mod_selection
                     case "$mod_selection" in
-                        00|"") break ;;
-                        *) process_module_install "$mod_selection" ;;
+                        00|""|r|R|c|C) break ;;
+                        q|Q)
+                            post_install_hooks
+                            show_final_dashboard
+                            return
+                            ;;
+                        *)
+                            if ! $base_ready; then
+                                install_universal_base
+                                base_ready=true
+                            fi
+                            process_module_install "$mod_selection"
+                            ;;
+                    esac
+                done
+                ;;
+            2)
+                while true; do
+                    show_module_menu
+                    read -r sel
+                    case "$sel" in
+                        00|""|r|R|c|C) break ;;
+                        q|Q)
+                            post_install_hooks
+                            show_final_dashboard
+                            return
+                            ;;
+                        *) process_check_and_fix "$sel" ;;
                     esac
                 done
                 ;;
@@ -1877,14 +2094,20 @@ main_menu_loop() {
                     show_module_menu
                     read -r sel
                     case "$sel" in
-                        00|"") break ;;
+                        00|""|r|R|c|C) break ;;
+                        q|Q)
+                            post_install_hooks
+                            show_final_dashboard
+                            return
+                            ;;
                         *) process_reinstall "$sel" ;;
                     esac
                 done
                 ;;
             4) process_purge ;;
-            5) show_verification ;;
-            6)
+            5) process_cleanup_obsolete ;;
+            6) show_verification ;;
+            7)
                 configure_visual_theme
                 configure_universal_shortcuts
                 configure_shell
@@ -1893,6 +2116,15 @@ main_menu_loop() {
                 read -r
                 ;;
             0)
+                post_install_hooks
+                show_final_dashboard
+                break
+                ;;
+            c|C)
+                echo -e "${YELLOW}Operación cancelada. Volviendo al menú...${NC}"
+                sleep 1
+                ;;
+            q|Q)
                 post_install_hooks
                 show_final_dashboard
                 break
@@ -1932,6 +2164,12 @@ main() {
         echo -e "${YELLOW}¿Forzar ejecución? (s/N): ${NC}"
         read -r force
         [[ "${force,,}" != "s" && "${force,,}" != "y" ]] && exit 1
+    fi
+
+    # Auditoria JSON opcional: compara estado deseado vs estado actual.
+    if [[ -n "$PROFILE_JSON" ]] && declare -F json_profile_audit >/dev/null; then
+        section_header "[JSON] Auditoría de personalización"
+        json_profile_audit "$PROFILE_JSON" "$USER_HOME"
     fi
     
     # Banner de inicio

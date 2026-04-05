@@ -12,11 +12,13 @@ NON_INTERACTIVE="${NON_INTERACTIVE:-false}"
 INSTALL_MODE="${INSTALL_MODE:-full}"
 PROFILE="${PROFILE:-workstation}"
 ACTION="${ACTION:-install}"
+PROFILE_JSON="${PROFILE_JSON:-}"
 
 TARGET_USER=""
 TARGET_HOME=""
 TOTAL_RAM_GB=4
 DESKTOP_ENV="unknown"
+SYSTEM_ARCH="amd64"
 LOG_DIR="/var/log"
 LOG_FILE=""
 
@@ -84,8 +86,9 @@ detect_context() {
   TARGET_HOME="/home/${TARGET_USER}"
   TOTAL_RAM_GB=$(free -g 2>/dev/null | awk '/^Mem:/{print $2}' || echo 4)
   DESKTOP_ENV="${XDG_CURRENT_DESKTOP:-unknown}"
+  SYSTEM_ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
 
-  export TARGET_USER TARGET_HOME TOTAL_RAM_GB DESKTOP_ENV
+  export TARGET_USER TARGET_HOME TOTAL_RAM_GB DESKTOP_ENV SYSTEM_ARCH
 }
 
 check_debian_version() {
@@ -138,12 +141,38 @@ pkg_installed() {
 
 apt_install() {
   local pkg="$1"
+  local compat_reason=""
+
+  if ! check_package_compatibility_v2 "${pkg}" compat_reason; then
+    log "SKIP" "[COMPAT:BLOCK] ${pkg} - ${compat_reason}"
+    return 0
+  fi
+
+  log "INFO" "[COMPAT:OK] ${pkg}"
+
   if pkg_installed "${pkg}"; then
     log "SKIP" "${pkg} ya instalado"
     return 0
   fi
   log "INFO" "Instalando ${pkg}"
   run_cmd apt install -y "${pkg}"
+}
+
+apt_reinstall() {
+  local pkg="$1"
+  local compat_reason=""
+
+  if ! check_package_compatibility_v2 "${pkg}" compat_reason; then
+    log "SKIP" "[COMPAT:BLOCK] ${pkg} - ${compat_reason}"
+    return 0
+  fi
+
+  if pkg_installed "${pkg}"; then
+    log "INFO" "Reinstalando ${pkg}"
+    run_cmd apt install --reinstall -y "${pkg}"
+  else
+    apt_install "${pkg}"
+  fi
 }
 
 apt_remove_if_installed() {
@@ -198,6 +227,32 @@ remove_flatpak_app_if_installed() {
 
   log "INFO" "Eliminando Flatpak ${app_id}"
   run_cmd flatpak uninstall -y --noninteractive "${app_id}"
+}
+
+check_package_compatibility_v2() {
+  local pkg="$1"
+  local __reason_var="$2"
+  local reason="compatible"
+
+  case "${pkg}" in
+    steam|wine32|libvulkan1:i386|mesa-vulkan-drivers:i386|libgl1-mesa-dri:i386)
+      if [[ "${SYSTEM_ARCH}" != "amd64" ]]; then
+        reason="requiere arquitectura amd64"
+        printf -v "${__reason_var}" '%s' "${reason}"
+        return 1
+      fi
+      ;;
+    blender|kdenlive|obs-studio)
+      if [[ "${TOTAL_RAM_GB}" -lt 4 ]]; then
+        reason="recomendado >= 4GB RAM"
+        printf -v "${__reason_var}" '%s' "${reason}"
+        return 1
+      fi
+      ;;
+  esac
+
+  printf -v "${__reason_var}" '%s' "${reason}"
+  return 0
 }
 
 append_once() {

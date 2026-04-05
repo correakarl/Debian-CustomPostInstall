@@ -1,64 +1,214 @@
-# Modulos
+# Catalogo de categorias y modulos
 
-## infra
+Este documento resume las categorias actualmente usadas por el flujo V1 (menu interactivo) y su equivalente funcional en V2 cuando aplica.
 
-Objetivo: preparar repositorios externos y conectividad APT.
+## Categorias V1
 
-Acciones:
-- Ajusta sources.list para Debian 13.
-- Importa keyrings (Microsoft, Google, Opera).
-- Crea listas de repos para VS Code, Edge, Chrome y Opera.
-- Fuerza IPv4 para APT.
+### optimization
 
-## base
+Objetivo: optimizacion base del sistema.
 
-Objetivo: instalar herramientas generales para cualquier perfil.
+Incluye:
+- zram-tools, earlyoom, ajustes sysctl y parametros de memoria.
+- optimizacion de latencia de red (fq_codel/bbr).
+- ajustes para estabilidad diaria sin intervenir kernel.
 
-Acciones:
-- Instala utilidades CLI base.
-- Instala fuentes comunes.
-- Activa y configura ufw con OpenSSH.
+### browsers
 
-## optimization
+Objetivo: navegacion web y compatibilidad de sitios.
 
-Objetivo: mejorar estabilidad y rendimiento diario.
+Incluye:
+- firefox-esr
+- chrome/edge/opera segun disponibilidad y compatibilidad
 
-Acciones:
-- Instala zram-tools, earlyoom y utilidades de sistema.
-- Configura swappiness segun RAM.
-- Aplica perfil sysctl con fq_codel y bbr.
+### office
 
-## dev
+Objetivo: productividad y documentos.
 
-Objetivo: preparar entorno de desarrollo moderno.
+Incluye:
+- libreoffice (writer/calc/impress)
+- visores de documentos
+- cliente de correo
 
-Acciones:
-- Instala compilacion/toolchain y CLI dev.
-- Instala VS Code y stack de contenedores (Docker/Podman).
-- Configura fnm + Node LTS + pnpm.
+### multimedia
 
-## multimedia
+Objetivo: reproduccion y creacion multimedia base.
 
-Objetivo: reproducir y gestionar contenido multimedia.
+Incluye:
+- vlc, mpv, ffmpeg
+- apps flatpak de comunicacion y musica cuando aplica
 
-Acciones:
-- Instala vlc/mpv/ffmpeg.
-- Instala apps Flatpak de comunicacion y musica.
+### dev_core
 
-## security-remote
+Objetivo: toolchain base de desarrollo.
 
-Objetivo: acceso remoto seguro y auditoria base.
+Incluye:
+- build-essential, pkg-config, ssl-dev, git-lfs
+- terminales y utilidades base
 
-Acciones:
-- Instala OpenSSH y herramientas remotas.
-- Instala utilidades de seguridad y diagnostico.
-- Aplica hardening basico SSH (sin root login).
+### dev_cli
 
-## ux
+Objetivo: productividad en linea de comandos.
 
-Objetivo: dejar una experiencia de uso inicial consistente.
+Incluye:
+- fzf, ripgrep, fd-find, bat/eza, httpie, mkcert
 
-Acciones:
-- Despliega tema Fake10 (si existe archivo local).
-- Configura gtk settings.
-- Agrega aliases de shell utiles.
+### dev_web
+
+Objetivo: stack web moderno.
+
+Incluye:
+- VS Code
+- Docker y compose plugin
+- postconfiguracion de runtime web
+
+### dev_containers
+
+Objetivo: contenedores y orquestacion ligera.
+
+Incluye:
+- podman/podman-docker
+- herramientas de contenedores para pruebas y desarrollo
+
+### dev_mobile
+
+Objetivo: herramientas base para desarrollo mobile.
+
+Incluye:
+- adb
+- fastboot
+- scrcpy
+
+### communication
+
+Objetivo: mensajeria y colaboracion.
+
+Incluye:
+- clientes de comunicacion compatibles con Debian y/o repos externos
+
+### virtualization
+
+Objetivo: virtualizacion local.
+
+Incluye:
+- qemu/libvirt
+- virt-manager y herramientas asociadas
+- virtualbox para escenarios de VM de escritorio
+
+### hardware_drivers
+
+Objetivo: comprobacion y soporte de hardware/driver no nativo.
+
+Incluye:
+- inventario y diagnostico (inxi, lshw, hwinfo, pciutils, usbutils, dmidecode)
+- utilidades de firmware (fwupd)
+- firmware no libre cuando aplica (firmware-linux-nonfree, firmware-misc-nonfree)
+- soporte de deteccion nvidia (nvidia-detect)
+
+### vpn_free
+
+Objetivo: base para uso de VPN gratuita por perfiles OpenVPN/WireGuard.
+
+Incluye:
+- openvpn
+- wireguard-tools
+- plugins NetworkManager OpenVPN
+- notas de uso para proveedores con plan free
+
+### design_graphic
+
+Objetivo: diseno grafico y edicion 2D.
+
+Incluye:
+- gimp, inkscape, krita, fontforge
+
+### design_video
+
+Objetivo: edicion y produccion audiovisual.
+
+Incluye:
+- kdenlive, audacity, obs-studio, handbrake-cli
+
+### design_3d
+
+Objetivo: modelado y CAD base.
+
+Incluye:
+- blender
+- freecad
+
+### gaming
+
+Objetivo: gaming nativo Linux.
+
+Incluye:
+- steam, heroic, retroarch
+- vulkan, mangohud, gamemode
+- protonup-qt para gestionar Proton GE
+
+### windows_compat
+
+Objetivo: compatibilidad de aplicaciones Windows.
+
+Incluye:
+- wine64/wine32
+- winetricks y utilidades auxiliares
+- librerias i386 Vulkan/OpenGL
+- Bottles (Flatpak) con configuracion base
+
+### cybersec
+
+Objetivo: diagnostico y seguridad operativa.
+
+Incluye:
+- nmap, wireshark, tcpdump, lynis, nikto, etc.
+
+### remote
+
+Objetivo: acceso remoto y transferencia segura.
+
+Incluye:
+- openssh, rsync, rclone, syncthing y herramientas de tunel
+
+### monitoring
+
+Objetivo: observabilidad del sistema.
+
+Incluye:
+- iotop, iftop, nethogs, psensor, smartmontools
+
+### backup
+
+Objetivo: respaldo y recuperacion.
+
+Incluye:
+- timeshift, borgbackup, restic
+
+### security
+
+Objetivo: hardening y validacion basica de seguridad.
+
+Incluye:
+- auditd, apparmor-utils, chkrootkit, rkhunter
+
+## Operaciones relevantes
+
+### Check and Fix
+
+En V1 existe una opcion dedicada para check and fix por categoria:
+
+- verifica estado por categoria
+- limpia preconfiguracion conflictiva cuando aplica
+- reinstala/repara
+- reaplica postconfiguraciones correctivas
+
+### Limpiar innecesarios
+
+El flujo incluye limpieza de paquetes reemplazados por alternativas modernas y limpieza de residuos del sistema.
+
+Ejemplo aplicado:
+- mousepad se reemplaza por gedit.
+
+## Restriccion
+
+Ninguna categoria modifica o reemplaza el kernel.

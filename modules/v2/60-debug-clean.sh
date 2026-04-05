@@ -13,6 +13,12 @@ cleanup_replaced_tools() {
     apt_remove_if_installed exa
   fi
 
+  # Reemplazo de editor ligero: mousepad -> gedit.
+  if pkg_installed mousepad; then
+    apt_install gedit || true
+    apt_remove_if_installed mousepad
+  fi
+
   # net-tools puede mantenerse por compatibilidad, pero se deja opcional remover.
   if pkg_installed net-tools; then
     if confirm_or_continue "Deseas remover net-tools y quedarte con iproute2?"; then
