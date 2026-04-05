@@ -112,7 +112,8 @@ Durante instalacion se imprimen flags por paquete:
 Novedades incluidas:
 
 - Virtualizacion con VirtualBox ademas de QEMU/libvirt.
-- Gaming con ProtonUp-Qt para gestion de versiones Proton GE.
+- Gaming con deteccion equivalente APT/Flatpak para Steam, Heroic y ProtonUp-Qt.
+- Brave incluido en navegadores con repositorio oficial APT.
 - Utilidades para drivers/hardware no nativo: inxi, lshw, hwinfo, fwupd, firmware no libre y reporte local.
 - Stack VPN gratuito cliente: OpenVPN + WireGuard + plugins NetworkManager.
 - Editor de texto actualizado: reemplazo de mousepad por gedit en limpieza correctiva.
@@ -180,9 +181,16 @@ En V2 tambien se incluyeron:
 
 - VS Code en perfiles de desarrollo y creator/workstation donde aplica.
 - VirtualBox en perfiles orientados a desarrollo/uso general.
-- ProtonUp-Qt en perfil gaming (APT y/o Flatpak segun flujo).
+- Perfil gaming alineado con instalacion real: base APT para Vulkan/GameMode y apps gaming principales por Flatpak cuando corresponde.
 - Herramientas de hardware/drivers y VPN libre en el core/base de sistema.
 - Reemplazo mousepad -> gedit en `clean-obsolete`.
+
+Detalle relevante de deteccion:
+
+- Steam puede detectarse por paquete APT o Flatpak `com.valvesoftware.Steam`.
+- Heroic puede detectarse por APT o Flatpak `com.heroicgameslauncher.hgl`.
+- ProtonUp-Qt puede detectarse por APT o Flatpak `net.davidotek.pupgui2`.
+- `glxinfo` se considera cubierto cuando existe el comando o esta instalado `mesa-utils`.
 
 ## Compatibilidad Windows (Bottles/Wine)
 

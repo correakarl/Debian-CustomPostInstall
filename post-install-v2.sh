@@ -349,7 +349,7 @@ v2_category_packages() {
       echo "code build-essential cmake ninja-build clang gdb valgrind docker-ce docker-ce-cli containerd.io docker-compose-plugin"
       ;;
     gaming-native)
-      echo "steam protonup-qt gamemode libgamemode0 mangohud vulkan-tools"
+      echo "steam gamemode libgamemode0 mangohud vulkan-tools mesa-utils"
       ;;
     windows-compat)
       echo "wine wine64 wine32 winetricks cabextract p7zip-full libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri libgl1-mesa-dri:i386"

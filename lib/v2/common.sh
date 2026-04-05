@@ -207,6 +207,28 @@ pkg_installed() {
   dpkg -s "$1" >/dev/null 2>&1
 }
 
+pkg_effectively_installed_v2() {
+  local pkg="$1"
+
+  case "${pkg}" in
+    steam)
+      pkg_installed steam || flatpak list --app --columns=application 2>/dev/null | grep -q '^com.valvesoftware.Steam$'
+      ;;
+    heroic-games-launcher)
+      pkg_installed heroic-games-launcher || flatpak list --app --columns=application 2>/dev/null | grep -q '^com.heroicgameslauncher.hgl$'
+      ;;
+    protonup-qt)
+      pkg_installed protonup-qt || flatpak list --app --columns=application 2>/dev/null | grep -q '^net.davidotek.pupgui2$'
+      ;;
+    glxinfo)
+      command -v glxinfo >/dev/null 2>&1 || pkg_installed mesa-utils
+      ;;
+    *)
+      pkg_installed "${pkg}"
+      ;;
+  esac
+}
+
 apt_install() {
   local pkg="$1"
   local compat_reason=""
@@ -218,7 +240,7 @@ apt_install() {
 
   log "INFO" "[COMPAT:OK] ${pkg}"
 
-  if pkg_installed "${pkg}"; then
+  if pkg_effectively_installed_v2 "${pkg}"; then
     log "SKIP" "${pkg} ya instalado"
     return 0
   fi

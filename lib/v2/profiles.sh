@@ -22,7 +22,7 @@ profile_packages_apt() {
       echo "code openjdk-21-jdk android-sdk-platform-tools-adb android-sdk-platform-tools-common fastboot qemu-kvm"
       ;;
     gaming)
-      echo "steam protonup-qt gamemode libgamemode0 mangohud vulkan-tools mesa-vulkan-drivers libgl1-mesa-dri"
+      echo "steam gamemode libgamemode0 mangohud vulkan-tools mesa-vulkan-drivers libgl1-mesa-dri mesa-utils"
       ;;
     creator)
       echo "code gimp inkscape krita blender kdenlive audacity ffmpeg obs-studio gedit"

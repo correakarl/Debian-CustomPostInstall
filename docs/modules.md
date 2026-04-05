@@ -142,9 +142,26 @@ Incluye:
 Objetivo: gaming nativo Linux.
 
 Incluye:
-- steam, heroic, retroarch
-- vulkan, mangohud, gamemode
-- protonup-qt para gestionar Proton GE
+- base APT para retroarch, Vulkan, MangoHud, GameMode y utilidades graficas
+- Steam, Heroic, Lutris y ProtonUp-Qt detectables/instalables por Flatpak cuando aplica
+- deteccion equivalente para no reinstalar si ya existen por Flatpak o paquete proveedor
+
+Nota:
+- `glxinfo` no se trata como paquete APT independiente; se considera cubierto por `mesa-utils` o por la existencia del comando.
+
+### browsers
+
+Objetivo: navegacion general y compatibilidad de uso diario.
+
+Incluye:
+- firefox-esr
+- brave-browser
+- google-chrome-stable
+- microsoft-edge-stable
+- opera-stable
+
+Nota:
+- Brave usa su repositorio oficial APT antes de la instalacion.
 
 ### windows_compat
 

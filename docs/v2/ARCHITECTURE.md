@@ -57,7 +57,7 @@ Consideraciones de perfiles:
 
 - VS Code se mantiene disponible para ambientes de desarrollo y creator/workstation donde se define.
 - VirtualBox se incluye en perfiles orientados a desarrollo/uso general.
-- Gaming incorpora ProtonUp-Qt para gestión de Proton GE.
+- Gaming usa base APT para stack grafico/rendimiento y detecta Steam/Heroic/ProtonUp-Qt tambien cuando ya existen por Flatpak.
 
 ## Modos
 
@@ -113,7 +113,7 @@ El modulo [modules/v2/30-compat-bottles.sh](../../modules/v2/30-compat-bottles.s
 - librerias Vulkan/OpenGL i386
 - Bottles via Flatpak
 - ajustes base de permisos
-- ProtonUp-Qt para ajustes de Proton en entorno gaming
+- deteccion equivalente de componentes gaming instalados por Flatpak
 
 ## Hardware, drivers y VPN libre
 
@@ -131,9 +131,10 @@ Tambien incluye stack VPN cliente gratuito:
 
 Para gaming, la via principal sigue siendo nativa Linux:
 
-- Steam/Proton
-- Heroic
+- Steam/Proton, incluyendo deteccion via Flatpak `com.valvesoftware.Steam`
+- Heroic, incluyendo deteccion via Flatpak `com.heroicgameslauncher.hgl`
 - Lutris
+- ProtonUp-Qt via Flatpak `net.davidotek.pupgui2` cuando aplica
 - MangoHud + gamemode
 
 ## Optimizacion y consumo

@@ -132,9 +132,34 @@ section_header() {
 }
 
 # Verificaciones de paquetes
-is_apt_installed() { dpkg -l "$1" &>/dev/null; }
+is_apt_installed() { dpkg -s "$1" &>/dev/null; }
 cmd_exists() { command -v "$1" &>/dev/null; }
 is_flatpak_installed() { flatpak list --app --columns=application 2>/dev/null | grep -q "^$1$"; }
+
+is_package_effectively_installed() {
+    local pkg="$1"
+
+    case "$pkg" in
+        steam)
+            is_apt_installed "steam" || is_flatpak_installed "com.valvesoftware.Steam"
+            ;;
+        heroic-games-launcher)
+            is_apt_installed "heroic-games-launcher" || is_flatpak_installed "com.heroicgameslauncher.hgl"
+            ;;
+        protonup-qt)
+            is_apt_installed "protonup-qt" || is_flatpak_installed "net.davidotek.pupgui2"
+            ;;
+        glxinfo)
+            cmd_exists glxinfo || is_apt_installed "mesa-utils"
+            ;;
+        brave-browser)
+            is_apt_installed "brave-browser" || cmd_exists brave-browser
+            ;;
+        *)
+            is_apt_installed "$pkg"
+            ;;
+    esac
+}
 
 # Gestión de estado de módulos
 mark_module_installed() {
@@ -235,7 +260,7 @@ install_with_progress() {
         return 0
     fi
     
-    if is_apt_installed "$pkg"; then
+    if is_package_effectively_installed "$pkg"; then
         log_status "skip" "$desc (ya instalado)"
         return 0
     fi
@@ -616,6 +641,18 @@ setup_external_repos() {
             log_status "fail" "No se pudo importar llave Opera"
         fi
     fi
+
+    # Brave repo
+    if [[ ! -f /etc/apt/sources.list.d/brave-browser-release.list ]]; then
+        if curl -fsSLo "$keyring_dir/brave-browser-archive-keyring.gpg" https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg 2>/dev/null; then
+            chmod 644 "$keyring_dir/brave-browser-archive-keyring.gpg"
+            echo "deb [signed-by=$keyring_dir/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" > /etc/apt/sources.list.d/brave-browser-release.list
+            log_status "ok" "Repositorio Brave añadido"
+        else
+            rm -f "$keyring_dir/brave-browser-archive-keyring.gpg"
+            log_status "fail" "No se pudo importar llave Brave"
+        fi
+    fi
 }
 
 # =============================================================================
@@ -983,7 +1020,7 @@ readonly UNIVERSAL_BASE=(
 )
 
 # Módulos por categoría
-readonly MODULE_BROWSERS=(firefox-esr google-chrome-stable microsoft-edge-stable opera-stable)
+readonly MODULE_BROWSERS=(firefox-esr brave-browser google-chrome-stable microsoft-edge-stable opera-stable)
 readonly MODULE_OFFICE=(libreoffice-writer libreoffice-calc libreoffice-impress evince okular thunderbird)
 readonly MODULE_MULTIMEDIA=(vlc mpv ffmpeg libavcodec-extra)
 readonly MODULE_DEV_CORE=(code build-essential pkg-config libssl-dev git-lfs gh terminator tmux)
@@ -994,7 +1031,7 @@ readonly MODULE_DEV_MOBILE=(adb fastboot scrcpy)
 readonly MODULE_DESIGN_GRAPHIC=(gimp inkscape krita fontforge)
 readonly MODULE_DESIGN_VIDEO=(kdenlive audacity obs-studio handbrake-cli)
 readonly MODULE_DESIGN_3D=(blender freecad)
-readonly MODULE_GAMING_NATIVE=(steam heroic-games-launcher retroarch protonup-qt vulkan-tools libvulkan1 mesa-vulkan-drivers libgl1-mesa-dri gamemode libgamemode0 mangohud glxinfo mesa-utils preload)
+readonly MODULE_GAMING_NATIVE=(steam retroarch vulkan-tools libvulkan1 mesa-vulkan-drivers libgl1-mesa-dri gamemode libgamemode0 mangohud mesa-utils preload)
 readonly MODULE_WINDOWS_COMPAT=(wine wine64 wine32 winetricks cabextract p7zip-full libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri libgl1-mesa-dri:i386)
 readonly MODULE_COMMUNICATION=(telegram-desktop signal-desktop)
 readonly MODULE_VIRTUALIZATION=(qemu-system libvirt-daemon-system virt-manager virtinst virtualbox)
@@ -1010,7 +1047,7 @@ readonly MODULE_SECURITY=(auditd apparmor-utils chkrootkit rkhunter)
 readonly -A FLATPAK_APPS=(
     ["multimedia"]="com.spotify.Client"
     ["communication"]="com.discordapp.Discord md.obsidian.Obsidian io.github.mimbrero.WhatsAppDesktop"
-    ["gaming"]="com.heroicgameslauncher.hgl net.davidotek.pupgui2"
+    ["gaming"]="com.valvesoftware.Steam com.heroicgameslauncher.hgl net.lutris.Lutris net.davidotek.pupgui2"
     ["windows_compat"]="com.usebottles.bottles"
 )
 
@@ -1767,9 +1804,9 @@ show_verification() {
     fi
     
     echo -e "\n${BOLD}Paquetes críticos:${NC}"
-    local critical_pkgs=(code docker firefox-esr steam flatpak)
+    local critical_pkgs=(code docker firefox-esr brave-browser steam flatpak)
     for pkg in "${critical_pkgs[@]}"; do
-        if is_apt_installed "$pkg" || is_flatpak_installed "$pkg" 2>/dev/null; then
+        if is_package_effectively_installed "$pkg"; then
             echo -e "  ${GREEN}+${NC} $pkg"
         else
             echo -e "  ${RED}!${NC} $pkg"
