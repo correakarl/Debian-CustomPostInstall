@@ -19,6 +19,8 @@ readonly BOLD='\033[1m'
 
 # shellcheck source=lib/v2/common.sh
 source "${ROOT_DIR}/lib/v2/common.sh"
+# shellcheck source=lib/app-catalog.sh
+source "${ROOT_DIR}/lib/app-catalog.sh"
 # shellcheck source=lib/v2/profiles.sh
 source "${ROOT_DIR}/lib/v2/profiles.sh"
 # shellcheck source=lib/profile-json.sh
@@ -36,6 +38,22 @@ source "${ROOT_DIR}/modules/v2/40-gaming-native.sh"
 source "${ROOT_DIR}/modules/v2/50-dev-environments.sh"
 # shellcheck source=modules/v2/60-debug-clean.sh
 source "${ROOT_DIR}/modules/v2/60-debug-clean.sh"
+# shellcheck source=modules/v2/70-ai-environments.sh
+source "${ROOT_DIR}/modules/v2/70-ai-environments.sh"
+# shellcheck source=modules/v2/80-gpu-profiles.sh
+source "${ROOT_DIR}/modules/v2/80-gpu-profiles.sh"
+
+AI_BUNDLES="${AI_BUNDLES:-ml-core}"
+APP_CATALOG_JSON="${APP_CATALOG_JSON:-${ROOT_DIR}/config/app-library.json}"
+GPU_PROFILE="${GPU_PROFILE:-auto}"
+GPU_PURPOSE="${GPU_PURPOSE:-auto}"
+UX_LIGHT_RAN_V2=false
+AI_ENV_RAN_V2=false
+OPERATION_EXECUTED_V2=false
+
+readonly -a V2_CATEGORY_IDS=(
+  system-core dev-environments ai-environments gaming-native windows-compat virtualization hardware-drivers vpn-free
+)
 
 usage() {
   cat <<'EOF'
@@ -45,9 +63,13 @@ Uso:
   sudo ./post-install-v2.sh [opciones]
 
 Opciones:
-  --action <tipo>        install | check-fix | configure | reinstall | remove | remove-category | clean | clean-obsolete | clean-files | optimize | updates-cron | logs | refs | health
+  --action <tipo>        install | check-fix | configure | reinstall | remove | remove-category | clean | clean-obsolete | clean-files | clean-duplicates | optimize | updates-cron | remove-cron | logs | refs | health | verify | verify-category
   --profile <nombre>     Perfil de uso del equipo
   --category <nombre>    Categoria para remove-category
+  --ai-bundles <lista>   Bundles IA separados por coma: ml-core,dl-runtime,agents-stack
+  --catalog-json <ruta>  Biblioteca JSON de apps/fuentes/duplicados
+  --gpu-profile <tipo>   auto | intel | amd | nvidia | none
+  --gpu-purpose <tipo>   auto | general | gaming | design | ai
   --mode <tipo>          full | utils | debug-clean
   --profile-json <ruta>  JSON de comprobacion/personalizacion (estado deseado)
   --dry-run              Simula cambios
@@ -67,9 +89,13 @@ Ejemplos:
   sudo ./post-install-v2.sh --action clean --non-interactive
   sudo ./post-install-v2.sh --action clean-files
   sudo ./post-install-v2.sh --action updates-cron
+  sudo ./post-install-v2.sh --action remove-cron
   sudo ./post-install-v2.sh --action logs
   sudo ./post-install-v2.sh --action refs
   sudo ./post-install-v2.sh --action health
+  sudo ./post-install-v2.sh --action verify --profile ai-ml --ai-bundles ml-core,agents-stack
+  sudo ./post-install-v2.sh --action verify-category --category ai-environments
+  sudo ./post-install-v2.sh --action clean-duplicates --catalog-json ./config/app-library.json
   sudo ./post-install-v2.sh --profile-json ./config/customization-profile.example.json --action health
 
 Modo interactivo:
@@ -93,6 +119,22 @@ parse_args() {
         ;;
       --category)
         CATEGORY="$2"
+        shift 2
+        ;;
+      --ai-bundles)
+        AI_BUNDLES="$2"
+        shift 2
+        ;;
+      --catalog-json)
+        APP_CATALOG_JSON="$2"
+        shift 2
+        ;;
+      --gpu-profile)
+        GPU_PROFILE="$2"
+        shift 2
+        ;;
+      --gpu-purpose)
+        GPU_PURPOSE="$2"
         shift 2
         ;;
       --mode)
@@ -142,7 +184,7 @@ parse_args() {
 
 validate_profile() {
   case "${PROFILE}" in
-    workstation|dev-web|dev-app|dev-mobile|gaming|creator|minimal)
+    workstation|dev-web|dev-app|dev-mobile|gaming|creator|ai-ml|minimal)
       return 0
       ;;
     *)
@@ -155,7 +197,7 @@ validate_profile() {
 
 validate_action() {
   case "${ACTION}" in
-    install|check-fix|configure|reinstall|remove|remove-category|clean|clean-obsolete|clean-files|optimize|updates-cron|logs|refs|health)
+    install|check-fix|configure|reinstall|remove|remove-category|clean|clean-obsolete|clean-files|clean-duplicates|optimize|updates-cron|remove-cron|logs|refs|health|verify|verify-category)
       return 0
       ;;
     *)
@@ -178,24 +220,172 @@ show_banner() {
 show_action_menu_v2() {
   echo ""
   echo -e "${BOLD}Seleccione una opción:${NC}"
-  echo -e "  ${GREEN}[1]${NC} Instalar"
-  echo -e "  ${GREEN}[2]${NC} Check and Fix"
-  echo -e "  ${GREEN}[3]${NC} Configurar"
-  echo -e "  ${GREEN}[4]${NC} Reinstalar"
-  echo -e "  ${GREEN}[5]${NC} Eliminar"
-  echo -e "  ${GREEN}[6]${NC} Eliminar por categoría"
-  echo -e "  ${GREEN}[7]${NC} Limpieza general"
-  echo -e "  ${GREEN}[8]${NC} Limpiar reemplazados"
-  echo -e "  ${GREEN}[9]${NC} Limpiar temporales/descargas"
-  echo -e "  ${GREEN}[10]${NC} Optimizar"
-  echo -e "  ${GREEN}[11]${NC} Actualizaciones + cron"
-  echo -e "  ${GREEN}[12]${NC} Ver logs"
-  echo -e "  ${GREEN}[13]${NC} Referencias oficiales"
-  echo -e "  ${GREEN}[14]${NC} Panel de salud"
+  local -a actions=(
+    "1|Instalar"
+    "2|Check and Fix"
+    "3|Configurar"
+    "4|Reinstalar"
+    "5|Eliminar"
+    "6|Eliminar por categoría"
+    "7|Limpieza general"
+    "8|Limpiar reemplazados"
+    "9|Limpiar temporales/descargas"
+    "10|Optimizar"
+    "11|Actualizaciones + cron"
+    "12|Eliminar cron de mantenimiento"
+    "13|Ver logs"
+    "14|Referencias oficiales"
+    "15|Panel de salud"
+    "16|Verificar integridad"
+    "17|Verificar categoria"
+    "18|Limpiar duplicados (BD apps)"
+  )
+
+  local i left right
+  for ((i=0; i<${#actions[@]}; i+=2)); do
+    left="${actions[$i]}"
+    right=""
+    if (( i + 1 < ${#actions[@]} )); then
+      right="${actions[$((i + 1))]}"
+    fi
+
+    local left_idx left_txt right_idx right_txt
+    left_idx="${left%%|*}"
+    left_txt="${left#*|}"
+
+    if [[ -n "${right}" ]]; then
+      right_idx="${right%%|*}"
+      right_txt="${right#*|}"
+      printf "  ${GREEN}[%-2s]${NC} %-32s ${GREEN}[%-2s]${NC} %s\n" "${left_idx}" "${left_txt}" "${right_idx}" "${right_txt}"
+    else
+      printf "  ${GREEN}[%-2s]${NC} %s\n" "${left_idx}" "${left_txt}"
+    fi
+  done
+
   echo -e "  ${GRAY}[r]${NC} Regresar"
   echo -e "  ${YELLOW}[c]${NC} Cancelar"
   echo -e "  ${RED}[s]${NC} Salir"
-  echo -n -e "\n${CYAN}Opción [1-14,r,c,s]: ${NC}"
+  echo -n -e "\n${CYAN}Opción [1-18,r,c,s]: ${NC}"
+}
+
+show_v2_category_menu() {
+  echo "Categorias disponibles:"
+
+  local i
+  for ((i=0; i<${#V2_CATEGORY_IDS[@]}; i+=2)); do
+    local left="${V2_CATEGORY_IDS[$i]}"
+    local right=""
+    if (( i + 1 < ${#V2_CATEGORY_IDS[@]} )); then
+      right="${V2_CATEGORY_IDS[$((i + 1))]}"
+    fi
+
+    if [[ -n "${right}" ]]; then
+      printf "  %-28s %-28s\n" "${left}" "${right}"
+    else
+      printf "  %-28s\n" "${left}"
+    fi
+  done
+}
+
+normalize_ai_bundles() {
+  local raw="$1"
+  local normalized=""
+  local item
+
+  IFS=',' read -ra __items <<< "$raw"
+  for item in "${__items[@]}"; do
+    case "${item,,}" in
+      ml-core|dl-runtime|agents-stack)
+        if [[ -z "${normalized}" ]]; then
+          normalized="${item,,}"
+        else
+          normalized="${normalized},${item,,}"
+        fi
+        ;;
+      "")
+        ;;
+      *)
+        log "WARN" "Bundle IA no reconocido: ${item} (se ignora)"
+        ;;
+    esac
+  done
+
+  if [[ -z "${normalized}" ]]; then
+    normalized="ml-core"
+  fi
+
+  AI_BUNDLES="${normalized}"
+}
+
+catalog_available_v2() {
+  [[ -f "${APP_CATALOG_JSON}" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  jq empty "${APP_CATALOG_JSON}" >/dev/null 2>&1 || return 1
+  return 0
+}
+
+show_catalog_plan_for_profile_v2() {
+  local profile="$1"
+  if ! catalog_available_v2; then
+    return 0
+  fi
+
+  local apt_count flatpak_count
+  apt_count="$(jq -r --arg p "${profile}" '(.categories[$p].apt // []) | length' "${APP_CATALOG_JSON}")"
+  flatpak_count="$(jq -r --arg p "${profile}" '(.categories[$p].flatpak // []) | length' "${APP_CATALOG_JSON}")"
+
+  if [[ "${apt_count}" != "0" || "${flatpak_count}" != "0" ]]; then
+    log "INFO" "[CATALOG][${profile}] apt=${apt_count} flatpak=${flatpak_count} source=${APP_CATALOG_JSON}"
+  fi
+}
+
+run_catalog_profile_actions_v2() {
+  local profile="$1"
+  local stage="$2"
+  local actions=""
+
+  case "${stage}" in
+    pre)
+      actions="$(catalog_get_profile_pre_actions "${APP_CATALOG_JSON}" "${profile}")"
+      ;;
+    post)
+      actions="$(catalog_get_profile_post_actions "${APP_CATALOG_JSON}" "${profile}")"
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  [[ -z "${actions}" ]] && return 0
+
+  local action
+  for action in ${actions}; do
+    case "${action}" in
+      desktop_fixes)
+        if [[ "${UX_LIGHT_RAN_V2}" == "true" ]]; then
+          log "SKIP" "desktop_fixes omitido: ya aplicado por ux-light"
+        else
+          apply_desktop_environment_fixes_v2
+        fi
+        ;;
+      gpu_profile)
+        module_gpu_profiles_v2 "${profile}" "${GPU_PROFILE}" "${GPU_PURPOSE}"
+        ;;
+      ai_runtime_notes)
+        if [[ "${profile}" == "ai-ml" && "${AI_ENV_RAN_V2}" != "true" ]]; then
+          configure_ai_runtime_notes "${AI_BUNDLES}"
+        else
+          log "SKIP" "ai_runtime_notes omitido: ya aplicado por ai-environments"
+        fi
+        ;;
+      dedupe_from_catalog)
+        log "SKIP" "dedupe_from_catalog omitido en ${ACTION}; usar action clean-duplicates"
+        ;;
+      *)
+        log "WARN" "Accion catalogo no permitida en V2: ${action}"
+        ;;
+    esac
+  done
 }
 
 interactive_wizard() {
@@ -220,9 +410,13 @@ interactive_wizard() {
           9) ACTION="clean-files"; return 0 ;;
           10) ACTION="optimize"; return 0 ;;
           11) ACTION="updates-cron"; return 0 ;;
-          12) ACTION="logs"; return 0 ;;
-          13) ACTION="refs"; return 0 ;;
-          14) ACTION="health"; return 0 ;;
+          12) ACTION="remove-cron"; return 0 ;;
+          13) ACTION="logs"; return 0 ;;
+          14) ACTION="refs"; return 0 ;;
+          15) ACTION="health"; return 0 ;;
+          16) ACTION="verify"; step="profile" ;;
+          17) ACTION="verify-category"; step="category" ;;
+          18) ACTION="clean-duplicates"; return 0 ;;
           r) ;;
           c)
             log "WARN" "Asistente cancelado por usuario"
@@ -255,7 +449,7 @@ interactive_wizard() {
             log "INFO" "Saliendo por solicitud del usuario"
             exit 0
             ;;
-          workstation|dev-web|dev-app|dev-mobile|gaming|creator|minimal)
+          workstation|dev-web|dev-app|dev-mobile|gaming|creator|ai-ml|minimal)
             PROFILE="${input}"
             step="mode"
             ;;
@@ -281,16 +475,44 @@ interactive_wizard() {
             ;;
           full|utils|debug-clean)
             INSTALL_MODE="${input}"
-            return 0
+            if [[ "${PROFILE}" == "ai-ml" && ( "${ACTION}" == "install" || "${ACTION}" == "check-fix" || "${ACTION}" == "reinstall" || "${ACTION}" == "configure" || "${ACTION}" == "verify" ) ]]; then
+              step="ai_bundles"
+            else
+              return 0
+            fi
             ;;
           *) log "WARN" "Modo invalido, intenta nuevamente" ;;
+        esac
+        ;;
+
+      ai_bundles)
+        clear
+        section "Seleccion de bundles IA"
+        echo "Disponibles: ml-core | dl-runtime | agents-stack"
+        echo "Usa coma para combinar: ml-core,dl-runtime"
+        echo "Comandos: r=regresar, c=cancelar, s=salir"
+        input="$(prompt_with_default "Bundles IA" "${AI_BUNDLES}")"
+        case "${input,,}" in
+          r) step="mode" ;;
+          c)
+            log "WARN" "Asistente cancelado por usuario"
+            return 1
+            ;;
+          s)
+            log "INFO" "Saliendo por solicitud del usuario"
+            exit 0
+            ;;
+          *)
+            normalize_ai_bundles "${input}"
+            return 0
+            ;;
         esac
         ;;
 
       category)
         clear
         section "Seleccion de categoria"
-        echo "Categorias: system-core | dev-environments | gaming-native | windows-compat | virtualization | hardware-drivers | vpn-free"
+        show_v2_category_menu
         echo "Comandos: r=regresar, c=cancelar, s=salir"
         input="$(prompt_with_default "Categoria" "windows-compat")"
         case "${input,,}" in
@@ -303,11 +525,13 @@ interactive_wizard() {
             log "INFO" "Saliendo por solicitud del usuario"
             exit 0
             ;;
-          system-core|dev-environments|gaming-native|windows-compat|virtualization|hardware-drivers|vpn-free)
+          *)
             CATEGORY="${input}"
-            return 0
+            if validate_category; then
+              return 0
+            fi
+            log "WARN" "Categoria invalida, intenta nuevamente"
             ;;
-          *) log "WARN" "Categoria invalida, intenta nuevamente" ;;
         esac
         ;;
     esac
@@ -331,60 +555,24 @@ pre_cleanup_profile_defaults() {
 }
 
 validate_category() {
-  case "${CATEGORY}" in
-    system-core|dev-environments|gaming-native|windows-compat|virtualization|hardware-drivers|vpn-free)
+  local c
+  for c in "${V2_CATEGORY_IDS[@]}"; do
+    if [[ "${CATEGORY}" == "${c}" ]]; then
       return 0
-      ;;
-    *)
-      log "ERROR" "Categoria no soportada: ${CATEGORY}"
-      return 1
-      ;;
-  esac
+    fi
+  done
+  log "ERROR" "Categoria no soportada: ${CATEGORY}"
+  return 1
 }
 
 v2_category_packages() {
   local category="$1"
-  case "${category}" in
-    system-core)
-      echo "zram-tools earlyoom irqbalance tlp thermald fwupd"
-      ;;
-    dev-environments)
-      echo "code build-essential cmake ninja-build clang gdb valgrind docker-ce docker-ce-cli containerd.io docker-compose-plugin"
-      ;;
-    gaming-native)
-      echo "steam gamemode libgamemode0 mangohud vulkan-tools mesa-utils"
-      ;;
-    windows-compat)
-      echo "wine wine64 wine32 winetricks cabextract p7zip-full libvulkan1 libvulkan1:i386 mesa-vulkan-drivers mesa-vulkan-drivers:i386 libgl1-mesa-dri libgl1-mesa-dri:i386"
-      ;;
-    virtualization)
-      echo "virtualbox qemu-kvm qemu-system libvirt-daemon-system virt-manager virtinst"
-      ;;
-    hardware-drivers)
-      echo "inxi lshw hwinfo pciutils usbutils dmidecode fwupd nvidia-detect firmware-linux-nonfree firmware-misc-nonfree"
-      ;;
-    vpn-free)
-      echo "openvpn wireguard-tools network-manager-openvpn network-manager-openvpn-gnome"
-      ;;
-    *)
-      echo ""
-      ;;
-  esac
+  catalog_get_v2_category_apt "${APP_CATALOG_JSON}" "${category}"
 }
 
 v2_category_flatpaks() {
   local category="$1"
-  case "${category}" in
-    gaming-native)
-      echo "com.heroicgameslauncher.hgl net.lutris.Lutris com.valvesoftware.Steam net.davidotek.pupgui2"
-      ;;
-    windows-compat)
-      echo "com.usebottles.bottles"
-      ;;
-    *)
-      echo ""
-      ;;
-  esac
+  catalog_get_v2_category_flatpak "${APP_CATALOG_JSON}" "${category}"
 }
 
 show_auto_profile_snapshot_v2() {
@@ -399,15 +587,15 @@ update_auto_profile_snapshot_v2() {
     return 0
   fi
 
-  local -a snapshot_categories=(system-core dev-environments gaming-native windows-compat virtualization hardware-drivers vpn-free)
+  local -a snapshot_categories=("${V2_CATEGORY_IDS[@]}")
   json_profile_write_snapshot "${AUTO_PROFILE_JSON}" "autogenerated-v2" "${TARGET_HOME}" "post-install-v2" snapshot_categories v2_category_packages v2_category_flatpaks
   log "OK" "Snapshot JSON actualizado: ${AUTO_PROFILE_JSON}"
 }
 
 v2_pkg_shared_with_other_categories() {
   local pkg="$1" current="$2"
-  local categories=(system-core dev-environments gaming-native windows-compat virtualization hardware-drivers vpn-free)
-  for c in "${categories[@]}"; do
+  local c
+  for c in "${V2_CATEGORY_IDS[@]}"; do
     [[ "$c" == "$current" ]] && continue
     for p in $(v2_category_packages "$c"); do
       [[ "$p" == "$pkg" ]] && return 0
@@ -445,12 +633,22 @@ process_updates_and_cron_v2() {
   log "OK" "Actualizaciones disponibles: ${up_count}"
 
   local cron_script="/usr/local/bin/debian-postinstall-v2-maintenance.sh"
+  local cron_log_file="${LOG_DIR}/debian-postinstall-v2-cron.log"
   cat <<'EOF' > "${cron_script}"
 #!/usr/bin/env bash
 set -o errexit
 set -o nounset
 set -o pipefail
-LOGFILE="/var/log/debian-postinstall-v2-cron.log"
+LOGFILE="__CRON_LOG_FILE__"
+mkdir -p "$(dirname "$LOGFILE")"
+if [[ -f "$LOGFILE" ]]; then
+  bytes=$(wc -c < "$LOGFILE" 2>/dev/null || echo 0)
+  max_bytes=$((5*1024*1024))
+  if (( bytes > max_bytes )); then
+    tail -n 300 "$LOGFILE" > "${LOGFILE}.tmp" 2>/dev/null || true
+    mv -f "${LOGFILE}.tmp" "$LOGFILE" 2>/dev/null || true
+  fi
+fi
 {
   echo "[$(date '+%F %T')] === V2 maintenance ==="
   apt update -qq || true
@@ -466,6 +664,7 @@ LOGFILE="/var/log/debian-postinstall-v2-cron.log"
   echo "---"
 } >> "$LOGFILE"
 EOF
+  sed -i "s|__CRON_LOG_FILE__|${cron_log_file}|g" "${cron_script}"
   chmod +x "${cron_script}"
 
   cat <<'EOF' > /etc/cron.d/debian-postinstall-v2-maintenance
@@ -475,6 +674,23 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EOF
   chmod 644 /etc/cron.d/debian-postinstall-v2-maintenance
   log "OK" "Cron configurado: /etc/cron.d/debian-postinstall-v2-maintenance"
+}
+
+process_remove_updates_cron_v2() {
+  section "Eliminar cron de mantenimiento"
+
+  local cron_file="/etc/cron.d/debian-postinstall-v2-maintenance"
+  local cron_script="/usr/local/bin/debian-postinstall-v2-maintenance.sh"
+
+  if [[ ! -f "${cron_file}" && ! -f "${cron_script}" ]]; then
+    log "SKIP" "No se encontraron artefactos de cron V2 para eliminar"
+    return 0
+  fi
+
+  run_cmd rm -f "${cron_file}" "${cron_script}"
+  run_cmd systemctl reload cron || true
+
+  log "OK" "Cron de mantenimiento V2 eliminado"
 }
 
 cleanup_temp_and_downloads_v2() {
@@ -568,13 +784,21 @@ remove_profile_packages() {
 run_install_mode() {
   case "${INSTALL_MODE}" in
     full)
+      run_catalog_profile_actions_v2 "${PROFILE}" pre
       module_system_core
       module_ux_light
+      UX_LIGHT_RAN_V2=true
       module_compat_bottles
+      show_catalog_plan_for_profile_v2 "${PROFILE}"
       module_dev_environments "${PROFILE}"
       if [[ "${PROFILE}" == "gaming" ]]; then
         module_gaming_native
       fi
+      if [[ "${PROFILE}" == "ai-ml" ]]; then
+        module_ai_environments "${AI_BUNDLES}"
+        AI_ENV_RAN_V2=true
+      fi
+      run_catalog_profile_actions_v2 "${PROFILE}" post
       ;;
     utils)
       module_system_core
@@ -590,6 +814,194 @@ run_install_mode() {
       exit 1
       ;;
   esac
+}
+
+verify_profile_integrity() {
+  section "Verificacion de integridad (${PROFILE})"
+
+  local total=0 passed=0 missing=0 compat_warn=0
+  local apt_list flatpak_list pkg app reason
+
+  apt_list="$(profile_packages_apt "${PROFILE}")"
+  flatpak_list="$(profile_packages_flatpak "${PROFILE}")"
+
+  ((total++))
+  if dpkg --audit 2>/dev/null | grep -q .; then
+    log "WARN" "dpkg --audit detecta incidencias pendientes"
+  else
+    log "OK" "dpkg --audit sin incidencias"
+    ((passed++))
+  fi
+
+  ((total++))
+  if apt-get check >/dev/null 2>&1; then
+    log "OK" "Integridad APT correcta (apt-get check)"
+    ((passed++))
+  else
+    log "WARN" "apt-get check detecto inconsistencias"
+  fi
+
+  for pkg in ${apt_list}; do
+    ((total++))
+    if pkg_installed "${pkg}"; then
+      log "OK" "Paquete perfil presente: ${pkg}"
+      ((passed++))
+    else
+      log "WARN" "Paquete perfil faltante: ${pkg}"
+      missing=$((missing + 1))
+    fi
+
+    if ! check_package_compatibility_v2 "${pkg}" reason; then
+      log "WARN" "Compatibilidad: ${pkg} -> ${reason}"
+      compat_warn=$((compat_warn + 1))
+    fi
+  done
+
+  for app in ${flatpak_list}; do
+    ((total++))
+    if command -v flatpak >/dev/null 2>&1 && flatpak list --app --columns=application 2>/dev/null | grep -q "^${app}$"; then
+      log "OK" "Flatpak perfil presente: ${app}"
+      ((passed++))
+    else
+      log "WARN" "Flatpak perfil faltante: ${app}"
+      missing=$((missing + 1))
+    fi
+  done
+
+  if [[ "${PROFILE}" == "ai-ml" ]]; then
+    ((total++))
+    if command -v python3 >/dev/null 2>&1; then
+      log "OK" "python3 disponible"
+      ((passed++))
+    else
+      log "WARN" "python3 no disponible"
+    fi
+
+    ((total++))
+    if python3 -c 'import numpy, pandas, sklearn' >/dev/null 2>&1; then
+      log "OK" "Stack base IA importable (numpy/pandas/sklearn)"
+      ((passed++))
+    else
+      log "WARN" "Fallo de import en stack base IA"
+    fi
+  fi
+
+  section "Resumen de verificacion"
+  log "INFO" "Checks correctos: ${passed}/${total}"
+  log "INFO" "Faltantes detectados: ${missing}"
+  log "INFO" "Advertencias de compatibilidad: ${compat_warn}"
+}
+
+verify_category_integrity() {
+  section "Verificacion por categoria (${CATEGORY})"
+
+  validate_category || exit 1
+
+  local total=0 passed=0 missing=0 reason
+  local pkg app
+
+  for pkg in $(v2_category_packages "${CATEGORY}"); do
+    ((total++))
+    if pkg_installed "${pkg}"; then
+      log "OK" "Categoria ${CATEGORY}: ${pkg} presente"
+      ((passed++))
+    else
+      log "WARN" "Categoria ${CATEGORY}: ${pkg} faltante"
+      missing=$((missing + 1))
+    fi
+
+    if ! check_package_compatibility_v2 "${pkg}" reason; then
+      log "WARN" "Compatibilidad ${pkg}: ${reason}"
+    fi
+  done
+
+  for app in $(v2_category_flatpaks "${CATEGORY}"); do
+    ((total++))
+    if command -v flatpak >/dev/null 2>&1 && flatpak list --app --columns=application 2>/dev/null | grep -q "^${app}$"; then
+      log "OK" "Categoria ${CATEGORY}: Flatpak ${app} presente"
+      ((passed++))
+    else
+      log "WARN" "Categoria ${CATEGORY}: Flatpak ${app} faltante"
+      missing=$((missing + 1))
+    fi
+  done
+
+  section "Resumen categoria"
+  log "INFO" "Checks correctos: ${passed}/${total}"
+  log "INFO" "Faltantes: ${missing}"
+}
+
+pkg_held_v2() {
+  local pkg="$1"
+  command -v apt-mark >/dev/null 2>&1 || return 1
+  apt-mark showhold 2>/dev/null | grep -qx "${pkg}"
+}
+
+flatpak_preferred_ready_v2() {
+  local app_id="$1"
+  command -v flatpak >/dev/null 2>&1 || return 1
+  flatpak list --app --columns=application 2>/dev/null | grep -q "^${app_id}$" || return 1
+
+  local desktop_global desktop_user
+  desktop_global="/var/lib/flatpak/exports/share/applications/${app_id}.desktop"
+  desktop_user="${TARGET_HOME}/.local/share/flatpak/exports/share/applications/${app_id}.desktop"
+  [[ -f "${desktop_global}" || -f "${desktop_user}" ]]
+}
+
+clean_duplicates_from_catalog_v2() {
+  section "Limpieza de duplicados (catalogo JSON)"
+
+  if ! catalog_available_v2; then
+    log "WARN" "Catalogo JSON no disponible o invalido: ${APP_CATALOG_JSON}"
+    log "WARN" "Requisitos: archivo existente + jq instalado"
+    return 0
+  fi
+
+  local cleaned=0
+  local item
+
+  while IFS= read -r item; do
+    local name preferred_source preferred_id
+    name="$(echo "${item}" | base64 -d | jq -r '.name')"
+    preferred_source="$(echo "${item}" | base64 -d | jq -r '.preferred.source')"
+    preferred_id="$(echo "${item}" | base64 -d | jq -r '.preferred.id')"
+
+    log "INFO" "[DUP] Revisando ${name} (preferido=${preferred_source}:${preferred_id})"
+
+    if [[ "${preferred_source}" == "flatpak" ]]; then
+      if flatpak_preferred_ready_v2 "${preferred_id}"; then
+        local apt_pkg
+        while IFS= read -r apt_pkg; do
+          [[ -z "${apt_pkg}" ]] && continue
+          if pkg_installed "${apt_pkg}"; then
+            if pkg_held_v2 "${apt_pkg}"; then
+              log "SKIP" "${apt_pkg} en hold; no se purga"
+              continue
+            fi
+            apt_purge_if_installed "${apt_pkg}"
+            cleaned=$((cleaned + 1))
+          fi
+        done < <(echo "${item}" | base64 -d | jq -r '.apt_packages[]?')
+      else
+        log "SKIP" "No se limpia ${name}: Flatpak preferido no esta operativo/exportado"
+      fi
+    fi
+
+    if [[ "${preferred_source}" == "apt" ]]; then
+      if pkg_installed "${preferred_id}"; then
+        local app_id
+        while IFS= read -r app_id; do
+          [[ -z "${app_id}" ]] && continue
+          remove_flatpak_app_if_installed "${app_id}"
+          cleaned=$((cleaned + 1))
+        done < <(echo "${item}" | base64 -d | jq -r '.flatpak_apps[]?')
+      else
+        log "SKIP" "No se limpia ${name}: no esta instalado el preferido APT"
+      fi
+    fi
+  done < <(jq -r '.duplicates[] | @base64' "${APP_CATALOG_JSON}")
+
+  log "OK" "Limpieza de duplicados finalizada. Acciones ejecutadas: ${cleaned}"
 }
 
 health_panel_v2() {
@@ -652,6 +1064,12 @@ health_panel_v2() {
 
 run_action() {
   case "${ACTION}" in
+    install|check-fix|configure|reinstall|remove|remove-category|clean|clean-obsolete|clean-duplicates|clean-files|optimize|updates-cron|remove-cron)
+      OPERATION_EXECUTED_V2=true
+      ;;
+  esac
+
+  case "${ACTION}" in
     install)
       run_install_mode
       ;;
@@ -660,8 +1078,16 @@ run_action() {
       ;;
     configure)
       section "Configuracion"
+      run_catalog_profile_actions_v2 "${PROFILE}" pre
       module_ux_light
+      UX_LIGHT_RAN_V2=true
+      show_catalog_plan_for_profile_v2 "${PROFILE}"
       module_dev_environments "${PROFILE}"
+      if [[ "${PROFILE}" == "ai-ml" ]]; then
+        module_ai_environments "${AI_BUNDLES}"
+        AI_ENV_RAN_V2=true
+      fi
+      run_catalog_profile_actions_v2 "${PROFILE}" post
       ;;
     reinstall)
       section "Reinstalacion"
@@ -682,6 +1108,9 @@ run_action() {
       section "Limpieza de reemplazados"
       module_debug_clean
       ;;
+    clean-duplicates)
+      clean_duplicates_from_catalog_v2
+      ;;
     clean-files)
       cleanup_temp_and_downloads_v2
       ;;
@@ -692,6 +1121,9 @@ run_action() {
     updates-cron)
       process_updates_and_cron_v2
       ;;
+    remove-cron)
+      process_remove_updates_cron_v2
+      ;;
     logs)
       show_log_tail 120
       ;;
@@ -701,13 +1133,21 @@ run_action() {
     health)
       health_panel_v2
       ;;
+    verify)
+      verify_profile_integrity
+      ;;
+    verify-category)
+      verify_category_integrity
+      ;;
   esac
 }
 
 main() {
   parse_args "$@"
   require_root
+  catalog_require_ready_or_exit "${APP_CATALOG_JSON}" "post-install-v2.sh"
   setup_logging
+  trap 'finalize_logging_v2 "$?"' EXIT
   show_banner
   detect_context
   check_debian_version
@@ -721,11 +1161,12 @@ main() {
   fi
 
   validate_action
-  if [[ "${ACTION}" != "clean" && "${ACTION}" != "clean-obsolete" && "${ACTION}" != "clean-files" && "${ACTION}" != "optimize" && "${ACTION}" != "updates-cron" && "${ACTION}" != "logs" && "${ACTION}" != "refs" && "${ACTION}" != "health" && "${ACTION}" != "remove-category" ]]; then
+  normalize_ai_bundles "${AI_BUNDLES}"
+  if [[ "${ACTION}" != "clean" && "${ACTION}" != "clean-obsolete" && "${ACTION}" != "clean-files" && "${ACTION}" != "clean-duplicates" && "${ACTION}" != "optimize" && "${ACTION}" != "updates-cron" && "${ACTION}" != "remove-cron" && "${ACTION}" != "logs" && "${ACTION}" != "refs" && "${ACTION}" != "health" && "${ACTION}" != "remove-category" && "${ACTION}" != "verify-category" ]]; then
     validate_profile
   fi
 
-  if [[ "${ACTION}" == "remove-category" ]]; then
+  if [[ "${ACTION}" == "remove-category" || "${ACTION}" == "verify-category" ]]; then
     validate_category || exit 1
   fi
 
@@ -746,6 +1187,11 @@ main() {
   log "INFO" "${V2_NAME} v${V2_VERSION}"
   log "INFO" "Usuario objetivo: ${TARGET_USER} | DE: ${DESKTOP_ENV} | RAM: ${TOTAL_RAM_GB}GB"
   log "INFO" "Accion: ${ACTION} | Perfil: ${PROFILE} | Modo: ${INSTALL_MODE} | Dry-run: ${DRY_RUN}"
+  log "INFO" "Catalogo apps: ${APP_CATALOG_JSON}"
+  log "INFO" "GPU profile: ${GPU_PROFILE} | GPU purpose: ${GPU_PURPOSE}"
+  if [[ "${PROFILE}" == "ai-ml" ]]; then
+    log "INFO" "Bundles IA activos: ${AI_BUNDLES}"
+  fi
 
   section "Resumen y guia"
   log "INFO" "install/reinstall aplican modulos segun perfil"
@@ -753,18 +1199,26 @@ main() {
   log "INFO" "remove purga paquetes/apps del perfil"
   log "INFO" "clean elimina residuos y dependencias obsoletas"
   log "INFO" "clean-obsolete elimina paquetes reemplazados"
+  log "INFO" "clean-duplicates elimina duplicados segun catalogo JSON"
   log "INFO" "clean-files elimina temporales y descargas de instaladores"
   log "INFO" "check-fix valida perfil/modulo y reinstala versión correctiva"
+  log "INFO" "verify-category audita paquetes/apps por categoria"
   log "INFO" "remove-category purga por categoria sin romper categorias compartidas"
   log "INFO" "optimize re-aplica optimizaciones base"
   log "INFO" "updates-cron configura comprobacion periodica por cron"
+  log "INFO" "remove-cron elimina la tarea cron de mantenimiento"
   log "INFO" "logs muestra el ultimo registro"
   log "INFO" "refs muestra referencias oficiales"
   log "INFO" "health muestra el panel de estado de salud"
+  log "INFO" "verify audita integridad del perfil y compatibilidad"
   log "INFO" "Restriccion: este script no modifica ni reemplaza el kernel"
 
   run_action
-  update_auto_profile_snapshot_v2
+  if [[ "${OPERATION_EXECUTED_V2}" == "true" ]]; then
+    update_auto_profile_snapshot_v2
+  else
+    log "SKIP" "Snapshot omitido: la accion ${ACTION} no modifica estado instalado"
+  fi
 
   section "Finalizado"
   log "OK" "Proceso completado"

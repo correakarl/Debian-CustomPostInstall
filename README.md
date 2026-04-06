@@ -57,6 +57,9 @@ sudo bash post-install.sh
 - [9] Comprobar actualizaciones + configurar cron
 - [10] Referencias oficiales
 - [11] Limpiar temporales y descargas de instaladores
+- [12] Verificar por categoria
+- [13] Limpiar duplicados (BD apps)
+- [14] Eliminar cron de mantenimiento
 
 Navegacion:
 
@@ -82,6 +85,7 @@ Navegacion:
 - Diseno grafico
 - Diseno video
 - Diseno 3D
+- AI / ML / Agentes
 - Gaming nativo
 - Compatibilidad Windows (Bottles/Wine)
 - Ciberseguridad
@@ -118,6 +122,12 @@ Novedades incluidas:
 - Utilidades para drivers/hardware no nativo: inxi, lshw, hwinfo, fwupd, firmware no libre y reporte local.
 - Stack VPN gratuito cliente: OpenVPN + WireGuard + plugins NetworkManager.
 - Editor de texto actualizado: reemplazo de mousepad por gedit en limpieza correctiva.
+- Verificacion por categoria para auditar estado de paquetes y flatpaks por modulo.
+- Limpieza de duplicados desde biblioteca JSON de aplicaciones.
+- Perfilado GPU por categoria de uso (general/gaming/design/ai) sin reemplazo de kernel.
+- Fixes UX en XFCE: inhibicion de bloqueo/suspension en xfconf + override de logind para tapa/inactividad.
+- Mitigacion de duplicados Office: prioridad a Flatpak para LibreOffice y purga de paquete APT cuando procede.
+- Integracion XFCE reforzada: xfce4-goodies, pavucontrol, xfce4-power-manager-plugins y gvfs-backends.
 
 ## V2 por accion, perfil y modo
 
@@ -147,7 +157,14 @@ Navegacion en asistente:
 - dev-mobile
 - gaming
 - creator
+- ai-ml
 - minimal
+
+`ai-ml` instala base esencial para IA/ML (Python cientifico + herramientas de desarrollo) y permite seleccionar bundles interdependientes:
+
+- `ml-core`
+- `dl-runtime`
+- `agents-stack`
 
 ### Modos V2
 
@@ -165,12 +182,26 @@ Navegacion en asistente:
 - remove-category: purga por categoria con proteccion de paquetes compartidos
 - clean: limpieza general de residuos
 - clean-obsolete: limpia paquetes reemplazados
+- clean-duplicates: limpia duplicados usando biblioteca JSON de aplicaciones
 - clean-files: limpia temporales y descargas de instaladores no necesarios
 - optimize: reaplica optimizaciones base
 - updates-cron: revisa actualizaciones y configura cron de mantenimiento
+- remove-cron: elimina cron/script de mantenimiento instalado por el flujo V2
 - logs: muestra ultimo log
 - refs: muestra referencias oficiales
 - health: panel de estado de salud
+- verify: audita integridad de herramientas instaladas y compatibilidad del perfil
+- verify-category: audita integridad por categoria
+
+Opciones avanzadas nuevas:
+
+- `--catalog-json <ruta>`: biblioteca JSON de apps/fuentes/duplicados.
+- `--gpu-profile <tipo>`: `auto|intel|amd|nvidia|none`.
+- `--gpu-purpose <tipo>`: `auto|general|gaming|design|ai`.
+
+UX del asistente:
+
+- Menus largos de V1/V2 se muestran en columnas para reducir scroll y mejorar legibilidad.
 
 ### Compatibilidad visible en consola (V2)
 
@@ -186,6 +217,49 @@ En V2 tambien se incluyeron:
 - Perfil gaming alineado con instalacion real: base APT para Vulkan/GameMode y apps gaming principales por Flatpak cuando corresponde.
 - Herramientas de hardware/drivers y VPN libre en el core/base de sistema.
 - Reemplazo mousepad -> gedit en `clean-obsolete`.
+- En workstation, LibreOffice se prioriza por Flatpak para evitar duplicados con APT.
+- Ajustes anti-bloqueo en XFCE (power manager/screensaver/logind) durante `ux-light`.
+- Perfil `ai-ml` con instalacion esencial y seleccion de bundles IA en el asistente interactivo.
+- Accion `verify` para comprobacion de integridad de perfil (APT/Flatpak/comandos base/imports IA).
+- Accion `verify-category` para comprobacion por categoria.
+- Accion `clean-duplicates` para limpieza de duplicados segun catalogo.
+- Perfilado GPU por uso para gaming/diseno/IA sin reemplazar kernel automaticamente.
+
+## Biblioteca JSON de aplicaciones
+
+Se incluye una biblioteca base en:
+
+- [config/app-library.json](config/app-library.json)
+
+Objetivo:
+
+- Declarar fuentes globales (APT/Flathub).
+- Mantener catalogo por categoria/perfil.
+- Definir reglas de duplicados y preferencia de fuente.
+- Servir de base para `clean-duplicates` y para trazabilidad de instalacion.
+
+Normalizacion aplicada (v1.1.0 del catalogo):
+
+- `debian13_base`: base esencial y bloque de optimizacion recomendado.
+- `debian13_replacements`: reemplazos sugeridos para Debian 13.
+- `category_classification`: separacion por categoria entre esencial, opcional y pesado.
+- `integrity_rules`: comandos/imports de referencia para verificadores.
+
+Actualizacion catalogo (v1.1.1):
+
+- `sources.third_party_optional`: fuentes externas opcionales para paquetes que no siempre existen en repos base Debian/Flathub.
+- Si una fuente externa no esta configurada, el instalador omite ese item con trazabilidad (`[REPO:MISSING]` o `[FLATPAK:MISSING]`) sin abortar el flujo.
+- `sources.apt`: se define por canales oficiales Debian (`main`, `security`, `updates`) en lugar de una ruta unica simplificada.
+- Cuando aplica, el diagnostico de `REPO:MISSING` consulta `/var/log/apt/history.log` para detectar paquetes que existieron en repos previos.
+
+Compatibilidad:
+
+- Se mantienen `categories.<perfil>.apt` y `categories.<perfil>.flatpak` para no romper acciones existentes.
+
+Origen unico de datos (V1 y V2):
+
+- Ambos flujos leen perfiles/categorias desde `config/app-library.json` por medio de `lib/app-catalog.sh`.
+- La recomendacion operativa es no agregar listas de paquetes directas en scripts; agregar/editar primero en el catalogo.
 
 Detalle relevante de deteccion:
 
@@ -251,7 +325,7 @@ sudo bash post-install-v2.sh --profile-json ./config/customization-profile.examp
 
 V2 guarda logs en:
 
-- `/var/log/debian-postinstall-v2-YYYY-MM-DD-HHMMSS.log`
+- `./.runtime-logs/debian-postinstall-v2-YYYY-MM-DD-HHMMSS.log`
 
 Comandos utiles:
 
@@ -259,6 +333,7 @@ Comandos utiles:
 sudo bash post-install-v2.sh --action logs
 sudo bash post-install-v2.sh --action health
 sudo bash post-install-v2.sh --action updates-cron
+sudo bash post-install-v2.sh --action remove-cron
 sudo bash post-install-v2.sh --action refs
 ```
 
@@ -300,3 +375,16 @@ Simulacion sin cambios (dry-run):
 ```bash
 DRY_RUN=true sudo -E bash post-install-v2.sh --action install --profile dev-app --mode full --non-interactive
 ```
+
+## Licencia y atribucion
+
+- Licencia del proyecto: [LICENSE](LICENSE) (Creative Commons Attribution 4.0, CC BY 4.0).
+- Atribucion y avisos: [NOTICE](NOTICE).
+
+Autor principal:
+
+- Karl Michael Correa Rivero
+
+## Flujo del aplicativo
+
+- Diagrama completo V1/V2 (acciones, caminos de error y guardas): [docs/flows/debian-postinstall-full-flow.drawio](docs/flows/debian-postinstall-full-flow.drawio)

@@ -1,0 +1,279 @@
+{
+  "version": "1.1.1",
+  "generated_for": "debian-13-trixie",
+  "sources": {
+    "apt": {
+      "main": "http://deb.debian.org/debian/",
+      "security": "http://security.debian.org/debian-security",
+      "updates": "http://deb.debian.org/debian/"
+    },
+    "flathub": "https://flathub.org/",
+    "third_party_optional": {
+      "brave": "https://brave.com/linux/",
+      "google_chrome": "https://www.google.com/chrome/",
+      "microsoft_edge": "https://www.microsoft.com/edge",
+      "opera": "https://deb.opera.com/",
+      "docker": "https://download.docker.com/linux/debian",
+      "signal": "https://updates.signal.org/desktop/apt",
+      "steam": "https://repo.steampowered.com/steam/",
+      "virtualbox": "https://www.virtualbox.org/wiki/Linux_Downloads",
+      "helm": "https://helm.sh/docs/intro/install/",
+      "vscode": "https://packages.microsoft.com/repos/code"
+    },
+    "notes": "Catalogo de referencia para instalacion, verificacion y limpieza de duplicados. Algunos paquetes dependen de repos externos opcionales no habilitados por defecto."
+  },
+  "debian13_base": {
+    "essential_apt": [
+      "curl",
+      "wget",
+      "git",
+      "ca-certificates",
+      "gnupg",
+      "jq",
+      "ufw",
+      "fail2ban",
+      "unattended-upgrades"
+    ],
+    "optimization_core": [
+      "zram-tools",
+      "earlyoom",
+      "irqbalance",
+      "tlp",
+      "thermald"
+    ],
+    "notes": "Base recomendada para estabilidad, observabilidad y mantenimiento continuo."
+  },
+  "debian13_replacements": [
+    {
+      "obsolete": "exa",
+      "replacement": "eza",
+      "source": "apt",
+      "reason": "Proyecto mantenido activamente y mejor compatibilidad."
+    },
+    {
+      "obsolete": "mousepad",
+      "replacement": "gedit",
+      "source": "apt",
+      "reason": "Unificacion de editor base en flujos V1/V2."
+    },
+    {
+      "obsolete": "libreoffice-* (apt)",
+      "replacement": "org.libreoffice.LibreOffice",
+      "source": "flatpak",
+      "reason": "Evitar duplicados de menu y priorizar version mas actualizada."
+    }
+  ],
+  "category_classification": {
+    "workstation": {
+      "essential_apt": ["firefox-esr", "thunderbird", "gedit"],
+      "optional_apt": ["code", "virtualbox"],
+      "optional_flatpak": ["md.obsidian.Obsidian", "org.libreoffice.LibreOffice"],
+      "heavy_packages": ["virtualbox"],
+      "target_use": "productividad diaria"
+    },
+    "dev-web": {
+      "essential_apt": ["build-essential", "git-lfs", "ripgrep", "fd-find", "fzf", "httpie"],
+      "optional_apt": ["code", "gh"],
+      "optional_flatpak": ["com.getpostman.Postman"],
+      "heavy_packages": ["docker-ce", "docker-ce-cli", "containerd.io", "docker-compose-plugin"],
+      "target_use": "desarrollo web y contenedores"
+    },
+    "dev-app": {
+      "essential_apt": ["build-essential", "cmake", "ninja-build", "clang", "gdb", "valgrind"],
+      "optional_apt": ["code", "openjdk-21-jdk", "maven", "gradle"],
+      "optional_flatpak": [],
+      "heavy_packages": ["virtualbox"],
+      "target_use": "aplicaciones desktop/backend"
+    },
+    "dev-mobile": {
+      "essential_apt": ["openjdk-21-jdk", "android-sdk-platform-tools-adb", "fastboot"],
+      "optional_apt": ["code", "qemu-kvm", "android-sdk-platform-tools-common"],
+      "optional_flatpak": ["com.google.AndroidStudio"],
+      "heavy_packages": ["com.google.AndroidStudio", "qemu-kvm"],
+      "target_use": "toolchain mobile"
+    },
+    "gaming": {
+      "essential_apt": ["gamemode", "libgamemode0", "vulkan-tools", "mesa-utils"],
+      "optional_apt": ["steam", "mangohud", "mesa-vulkan-drivers", "libgl1-mesa-dri"],
+      "optional_flatpak": ["com.valvesoftware.Steam", "com.heroicgameslauncher.hgl", "net.lutris.Lutris", "net.davidotek.pupgui2"],
+      "heavy_packages": ["steam", "com.valvesoftware.Steam"],
+      "target_use": "gaming nativo linux"
+    },
+    "creator": {
+      "essential_apt": ["gimp", "inkscape", "krita", "ffmpeg"],
+      "optional_apt": ["code", "audacity", "obs-studio"],
+      "optional_flatpak": ["com.obsproject.Studio"],
+      "heavy_packages": ["blender", "kdenlive", "com.obsproject.Studio"],
+      "target_use": "diseno y produccion multimedia"
+    },
+    "ai-ml": {
+      "essential_apt": ["python3", "python3-venv", "python3-pip", "python3-dev", "python3-numpy", "python3-scipy", "python3-pandas", "python3-sklearn"],
+      "optional_apt": ["python3-matplotlib", "ipython3", "git", "git-lfs"],
+      "optional_flatpak": [],
+      "heavy_packages": [],
+      "target_use": "ml/dl y agentes sobre entornos virtuales"
+    }
+  },
+  "profiles": {
+    "workstation": {
+      "apt": ["code", "firefox-esr", "thunderbird", "gedit", "virtualbox", "openvpn", "wireguard-tools", "network-manager-openvpn", "network-manager-openvpn-gnome"],
+      "flatpak": ["md.obsidian.Obsidian", "org.libreoffice.LibreOffice"],
+      "pre_actions": [],
+      "post_actions": ["desktop_fixes", "dedupe_from_catalog"]
+    },
+    "dev-web": {
+      "apt": ["code", "build-essential", "git-lfs", "gh", "ripgrep", "fd-find", "fzf", "httpie", "docker-ce", "docker-ce-cli", "containerd.io", "docker-compose-plugin"],
+      "flatpak": ["com.getpostman.Postman"],
+      "pre_actions": [],
+      "post_actions": []
+    },
+    "dev-app": {
+      "apt": ["code", "build-essential", "cmake", "ninja-build", "clang", "gdb", "valgrind", "openjdk-21-jdk", "maven", "gradle", "virtualbox"],
+      "flatpak": [],
+      "pre_actions": [],
+      "post_actions": []
+    },
+    "dev-mobile": {
+      "apt": ["code", "openjdk-21-jdk", "android-sdk-platform-tools-adb", "android-sdk-platform-tools-common", "fastboot", "qemu-kvm"],
+      "flatpak": ["com.google.AndroidStudio"],
+      "pre_actions": [],
+      "post_actions": []
+    },
+    "gaming": {
+      "apt": ["steam", "gamemode", "libgamemode0", "mangohud", "vulkan-tools", "mesa-vulkan-drivers", "libgl1-mesa-dri", "mesa-utils"],
+      "flatpak": ["com.heroicgameslauncher.hgl", "net.lutris.Lutris", "com.valvesoftware.Steam", "net.davidotek.pupgui2", "org.freedesktop.Platform.VulkanLayer.MangoHud"],
+      "pre_actions": [],
+      "post_actions": ["gpu_profile"]
+    },
+    "creator": {
+      "apt": ["code", "gimp", "inkscape", "krita", "blender", "kdenlive", "audacity", "ffmpeg", "obs-studio", "gedit"],
+      "flatpak": ["com.obsproject.Studio"],
+      "pre_actions": [],
+      "post_actions": ["gpu_profile"]
+    },
+    "ai-ml": {
+      "apt": ["python3", "python3-venv", "python3-pip", "python3-dev", "python3-numpy", "python3-scipy", "python3-pandas", "python3-matplotlib", "python3-sklearn", "ipython3", "git", "git-lfs"],
+      "flatpak": [],
+      "pre_actions": [],
+      "post_actions": ["gpu_profile", "ai_runtime_notes"]
+    },
+    "minimal": {
+      "apt": ["neovim", "htop", "tmux", "curl", "wget", "git"],
+      "flatpak": [],
+      "pre_actions": [],
+      "post_actions": []
+    }
+  },
+  "v1_categories": {
+    "optimization": {"apt": ["zram-tools", "earlyoom", "preload", "tlp", "thermald", "irqbalance"], "flatpak": [], "pre_actions": [], "post_actions": []},
+    "browsers": {"apt": ["firefox-esr", "brave-browser", "google-chrome-stable", "microsoft-edge-stable", "opera-stable"], "flatpak": []},
+    "office": {"apt": ["evince", "okular", "thunderbird"], "flatpak": ["org.libreoffice.LibreOffice"], "pre_actions": [], "post_actions": ["desktop_fixes", "dedupe_from_catalog"]},
+    "multimedia": {"apt": ["vlc", "mpv", "ffmpeg", "libavcodec-extra"], "flatpak": ["com.spotify.Client"]},
+    "dev_core": {"apt": ["code", "build-essential", "pkg-config", "libssl-dev", "git-lfs", "gh", "terminator", "tmux"], "flatpak": []},
+    "dev_cli": {"apt": ["fzf", "ripgrep", "fd-find", "bat", "exa", "httpie", "mkcert"], "flatpak": []},
+    "dev_web": {"apt": ["code", "docker-ce", "docker-ce-cli", "containerd.io", "docker-compose-plugin"], "flatpak": []},
+    "dev_containers": {"apt": ["podman", "podman-docker", "kubectl", "helm"], "flatpak": []},
+    "dev_mobile": {"apt": ["adb", "fastboot", "scrcpy"], "flatpak": []},
+    "communication": {"apt": ["telegram-desktop", "signal-desktop"], "flatpak": ["com.discordapp.Discord", "md.obsidian.Obsidian", "io.github.mimbrero.WhatsAppDesktop"]},
+    "virtualization": {"apt": ["qemu-system", "libvirt-daemon-system", "virt-manager", "virtinst", "virtualbox"], "flatpak": []},
+    "hardware_drivers": {"apt": ["inxi", "lshw", "hwinfo", "pciutils", "usbutils", "dmidecode", "fwupd", "nvidia-detect", "firmware-linux-nonfree", "firmware-misc-nonfree"], "flatpak": []},
+    "vpn_free": {"apt": ["openvpn", "wireguard-tools", "network-manager-openvpn", "network-manager-openvpn-gnome"], "flatpak": []},
+    "design_graphic": {"apt": ["gimp", "inkscape", "krita", "fontforge"], "flatpak": [], "pre_actions": [], "post_actions": ["gpu_profile"]},
+    "design_video": {"apt": ["kdenlive", "audacity", "obs-studio", "handbrake-cli"], "flatpak": [], "pre_actions": [], "post_actions": ["gpu_profile"]},
+    "design_3d": {"apt": ["blender", "freecad"], "flatpak": [], "pre_actions": [], "post_actions": ["gpu_profile"]},
+    "ai_environments": {"apt": ["python3", "python3-venv", "python3-pip", "python3-dev", "python3-numpy", "python3-scipy", "python3-pandas", "python3-matplotlib", "python3-sklearn", "ipython3", "python3-h5py", "python3-pil", "python3-tqdm", "python3-requests", "python3-yaml", "git", "git-lfs"], "flatpak": [], "pre_actions": [], "post_actions": ["gpu_profile", "ai_runtime_notes"]},
+    "gaming": {"apt": ["steam", "retroarch", "vulkan-tools", "libvulkan1", "mesa-vulkan-drivers", "libgl1-mesa-dri", "gamemode", "libgamemode0", "mangohud", "mesa-utils", "preload"], "flatpak": ["com.valvesoftware.Steam", "com.heroicgameslauncher.hgl", "net.lutris.Lutris", "net.davidotek.pupgui2"], "pre_actions": [], "post_actions": ["gpu_profile"]},
+    "windows_compat": {"apt": ["wine", "wine64", "wine32", "winetricks", "cabextract", "p7zip-full", "libvulkan1", "libvulkan1:i386", "mesa-vulkan-drivers", "mesa-vulkan-drivers:i386", "libgl1-mesa-dri", "libgl1-mesa-dri:i386"], "flatpak": ["com.usebottles.bottles"]},
+    "cybersec": {"apt": ["nmap", "wireshark", "tcpdump", "netcat-openbsd", "socat", "lynis", "nikto", "hashcat", "john", "gpg"], "flatpak": []},
+    "remote": {"apt": ["openssh-server", "openssh-client", "sshuttle", "mosh", "vsftpd", "lftp", "tigervnc-standalone-server", "rsync", "rclone", "syncthing"], "flatpak": []},
+    "monitoring": {"apt": ["netdata", "iotop", "iftop", "nethogs", "psensor", "smartmontools"], "flatpak": []},
+    "backup": {"apt": ["timeshift", "borgbackup", "restic"], "flatpak": []},
+    "security": {"apt": ["auditd", "apparmor-utils", "chkrootkit", "rkhunter"], "flatpak": [], "pre_actions": [], "post_actions": []}
+  },
+  "v2_categories": {
+    "system-core": {"apt": ["zram-tools", "earlyoom", "irqbalance", "tlp", "thermald", "fwupd"], "flatpak": [], "pre_actions": [], "post_actions": []},
+    "dev-environments": {"apt": ["code", "build-essential", "cmake", "ninja-build", "clang", "gdb", "valgrind", "docker-ce", "docker-ce-cli", "containerd.io", "docker-compose-plugin"], "flatpak": [], "pre_actions": [], "post_actions": []},
+    "ai-environments": {"apt": ["python3", "python3-venv", "python3-pip", "python3-dev", "python3-numpy", "python3-scipy", "python3-pandas", "python3-matplotlib", "python3-sklearn", "ipython3", "git", "git-lfs", "python3-joblib", "python3-numexpr", "python3-h5py", "python3-pil", "python3-tqdm", "python3-requests", "python3-yaml"], "flatpak": [], "pre_actions": [], "post_actions": ["gpu_profile", "ai_runtime_notes"]},
+    "gaming-native": {"apt": ["steam", "gamemode", "libgamemode0", "mangohud", "vulkan-tools", "mesa-utils"], "flatpak": ["com.heroicgameslauncher.hgl", "net.lutris.Lutris", "com.valvesoftware.Steam", "net.davidotek.pupgui2"], "pre_actions": [], "post_actions": ["gpu_profile"]},
+    "windows-compat": {"apt": ["wine", "wine64", "wine32", "winetricks", "cabextract", "p7zip-full", "libvulkan1", "libvulkan1:i386", "mesa-vulkan-drivers", "mesa-vulkan-drivers:i386", "libgl1-mesa-dri", "libgl1-mesa-dri:i386"], "flatpak": ["com.usebottles.bottles"], "pre_actions": [], "post_actions": []},
+    "virtualization": {"apt": ["virtualbox", "qemu-kvm", "qemu-system", "libvirt-daemon-system", "virt-manager", "virtinst"], "flatpak": [], "pre_actions": [], "post_actions": []},
+    "hardware-drivers": {"apt": ["inxi", "lshw", "hwinfo", "pciutils", "usbutils", "dmidecode", "fwupd", "nvidia-detect", "firmware-linux-nonfree", "firmware-misc-nonfree"], "flatpak": [], "pre_actions": [], "post_actions": []},
+    "vpn-free": {"apt": ["openvpn", "wireguard-tools", "network-manager-openvpn", "network-manager-openvpn-gnome"], "flatpak": [], "pre_actions": [], "post_actions": []}
+  },
+  "categories": {
+    "workstation": {
+      "apt": ["code", "firefox-esr", "thunderbird", "gedit", "virtualbox"],
+      "flatpak": ["md.obsidian.Obsidian", "org.libreoffice.LibreOffice"]
+    },
+    "dev-web": {
+      "apt": ["code", "build-essential", "git-lfs", "gh", "ripgrep", "fd-find", "fzf", "httpie", "docker-ce", "docker-ce-cli", "containerd.io", "docker-compose-plugin"],
+      "flatpak": ["com.getpostman.Postman"]
+    },
+    "dev-app": {
+      "apt": ["code", "build-essential", "cmake", "ninja-build", "clang", "gdb", "valgrind", "openjdk-21-jdk", "maven", "gradle", "virtualbox"],
+      "flatpak": []
+    },
+    "dev-mobile": {
+      "apt": ["code", "openjdk-21-jdk", "android-sdk-platform-tools-adb", "android-sdk-platform-tools-common", "fastboot", "qemu-kvm"],
+      "flatpak": ["com.google.AndroidStudio"]
+    },
+    "gaming": {
+      "apt": ["steam", "gamemode", "libgamemode0", "mangohud", "vulkan-tools", "mesa-vulkan-drivers", "libgl1-mesa-dri", "mesa-utils"],
+      "flatpak": ["com.heroicgameslauncher.hgl", "net.lutris.Lutris", "com.valvesoftware.Steam", "net.davidotek.pupgui2"]
+    },
+    "creator": {
+      "apt": ["code", "gimp", "inkscape", "krita", "blender", "kdenlive", "audacity", "ffmpeg", "obs-studio", "gedit"],
+      "flatpak": ["com.obsproject.Studio"]
+    },
+    "ai-ml": {
+      "apt": ["python3", "python3-venv", "python3-pip", "python3-dev", "python3-numpy", "python3-scipy", "python3-pandas", "python3-matplotlib", "python3-sklearn", "ipython3", "git", "git-lfs"],
+      "flatpak": []
+    }
+  },
+  "duplicates": [
+    {
+      "name": "libreoffice",
+      "preferred": {
+        "source": "flatpak",
+        "id": "org.libreoffice.LibreOffice"
+      },
+      "apt_packages": [
+        "libreoffice-common",
+        "libreoffice-core",
+        "libreoffice-writer",
+        "libreoffice-calc",
+        "libreoffice-impress"
+      ],
+      "flatpak_apps": [
+        "org.libreoffice.LibreOffice"
+      ],
+      "replacement_hint": "Priorizar Flatpak en workstation para evitar duplicados de menu."
+    }
+  ],
+  "integrity_rules": {
+    "required_commands_global": ["bash", "apt", "dpkg", "systemctl", "curl"],
+    "required_commands_ai": ["python3", "pip3"],
+    "required_imports_ai": ["numpy", "pandas", "sklearn"],
+    "notes": "Reglas de referencia para verificadores de perfil/categoria."
+  },
+  "gpu_profiles": {
+    "intel": {
+      "general": ["mesa-utils", "vainfo", "intel-media-va-driver-non-free"],
+      "gaming": ["vulkan-tools", "mesa-vulkan-drivers", "mangohud"],
+      "design": ["vulkan-tools", "mesa-vulkan-drivers"],
+      "ai": ["clinfo", "ocl-icd-libopencl1"]
+    },
+    "amd": {
+      "general": ["mesa-utils", "vainfo", "firmware-amd-graphics"],
+      "gaming": ["vulkan-tools", "mesa-vulkan-drivers", "mangohud"],
+      "design": ["vulkan-tools", "mesa-vulkan-drivers"],
+      "ai": ["clinfo", "ocl-icd-libopencl1"]
+    },
+    "nvidia": {
+      "general": ["nvidia-detect", "mesa-utils"],
+      "gaming": ["vulkan-tools", "mangohud"],
+      "design": ["vulkan-tools"],
+      "ai": ["clinfo", "ocl-icd-libopencl1"]
+    }
+  }
+}

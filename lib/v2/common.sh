@@ -19,8 +19,11 @@ TARGET_HOME=""
 TOTAL_RAM_GB=4
 DESKTOP_ENV="unknown"
 SYSTEM_ARCH="amd64"
-LOG_DIR="/var/log"
+LOG_DIR="${ROOT_DIR:-$(pwd)}/.runtime-logs"
 LOG_FILE=""
+RUN_STARTED_AT=""
+RUN_STARTED_EPOCH=""
+RUN_LOG_FINALIZED_V2="false"
 
 log() {
   local level="$1"
@@ -34,11 +37,67 @@ section() {
 
 setup_logging() {
   local ts
+  mkdir -p "${LOG_DIR}"
+  rotate_logs_v2
   ts="$(date +%F-%H%M%S)"
   LOG_FILE="${LOG_DIR}/debian-postinstall-v2-${ts}.log"
   export LOG_FILE
+  RUN_STARTED_AT="$(date '+%F %T %z')"
+  RUN_STARTED_EPOCH="$(date +%s)"
   exec > >(tee -a "${LOG_FILE}") 2>&1
   log "OK" "Logging habilitado: ${LOG_FILE}"
+  log "INFO" "[RUN-START][V2] ts=${RUN_STARTED_AT} pid=$$"
+}
+
+rotate_logs_v2() {
+  local keep=6
+  local total_limit_bytes=$((25 * 1024 * 1024))
+  local logs=("${LOG_DIR}"/debian-postinstall-v2-*.log)
+
+  if [[ ! -e "${logs[0]}" ]]; then
+    return 0
+  fi
+
+  IFS=$'\n' logs=($(ls -t "${LOG_DIR}"/debian-postinstall-v2-*.log 2>/dev/null))
+
+  if [[ ${#logs[@]} -gt ${keep} ]]; then
+    local i
+    for ((i=keep; i<${#logs[@]}; i++)); do
+      rm -f "${logs[$i]}" 2>/dev/null || true
+    done
+  fi
+
+  local total_bytes=0
+  local f
+  for f in "${logs[@]}"; do
+    [[ -f "${f}" ]] || continue
+    total_bytes=$((total_bytes + $(wc -c < "${f}" 2>/dev/null || echo 0)))
+  done
+
+  if (( total_bytes > total_limit_bytes )); then
+    local idx=$(( ${#logs[@]} - 1 ))
+    while (( idx >= 0 && total_bytes > total_limit_bytes )); do
+      f="${logs[$idx]}"
+      if [[ -f "${f}" ]]; then
+        total_bytes=$((total_bytes - $(wc -c < "${f}" 2>/dev/null || echo 0)))
+        rm -f "${f}" 2>/dev/null || true
+      fi
+      idx=$((idx - 1))
+    done
+  fi
+}
+
+finalize_logging_v2() {
+  local exit_code="$1"
+  [[ "${RUN_LOG_FINALIZED_V2}" == "true" ]] && return 0
+  RUN_LOG_FINALIZED_V2="true"
+
+  local ended_at ended_epoch duration
+  ended_at="$(date '+%F %T %z')"
+  ended_epoch="$(date +%s)"
+  duration=$((ended_epoch - ${RUN_STARTED_EPOCH:-ended_epoch}))
+
+  log "INFO" "[RUN-END][V2] ts=${ended_at} pid=$$ exit=${exit_code} duration_sec=${duration}"
 }
 
 show_log_tail() {
@@ -199,12 +258,53 @@ preflight_checks() {
   log "OK" "Preflight completado"
 }
 
+show_spinner_v2() {
+  local msg="$1"
+  shift
+
+  if [[ "${NON_INTERACTIVE}" == "true" ]]; then
+    "$@"
+    return $?
+  fi
+
+  local spin='|/-\\'
+  local i=0
+
+  "$@" >/dev/null 2>&1 &
+  local pid=$!
+
+  while kill -0 "${pid}" 2>/dev/null; do
+    printf "\r%s %s" "${spin:i++%${#spin}:1}" "${msg}"
+    sleep 0.08
+  done
+
+  wait "${pid}"
+  local status=$?
+  printf "\r"
+
+  if [[ ${status} -eq 0 ]]; then
+    log "OK" "${msg}"
+    return 0
+  fi
+
+  log "ERROR" "${msg}"
+  return ${status}
+}
+
 apt_update() {
-  run_cmd apt update
+  show_spinner_v2 "Actualizando indices APT..." run_cmd apt update
 }
 
 pkg_installed() {
   dpkg -s "$1" >/dev/null 2>&1
+}
+
+pkg_seen_in_apt_history_v2() {
+  local pkg="$1"
+  local base_pkg="${pkg%:i386}"
+
+  [[ -r "/var/log/apt/history.log" ]] || return 1
+  grep -Eq "Install: .*${base_pkg}(:[a-z0-9]+)?" /var/log/apt/history.log
 }
 
 pkg_effectively_installed_v2() {
@@ -240,12 +340,20 @@ apt_install() {
 
   log "INFO" "[COMPAT:OK] ${pkg}"
 
-  if pkg_effectively_installed_v2 "${pkg}"; then
+  if ! apt_candidate_available_v2 "${pkg}"; then
+    if pkg_seen_in_apt_history_v2 "${pkg}"; then
+      log "SKIP" "[REPO:MISSING] ${pkg} no disponible hoy (detectado antes en history.log; revisar repos externos)"
+    else
+      log "SKIP" "[REPO:MISSING] ${pkg} no disponible en indices APT actuales (posible repo externo no configurado)"
+    fi
+    return 0
+  fi
+
+  if pkg_installed "${pkg}"; then
     log "SKIP" "${pkg} ya instalado"
     return 0
   fi
-  log "INFO" "Instalando ${pkg}"
-  run_cmd apt install -y "${pkg}"
+  show_spinner_v2 "Instalando ${pkg}..." run_cmd apt install -y "${pkg}"
 }
 
 apt_reinstall() {
@@ -257,9 +365,17 @@ apt_reinstall() {
     return 0
   fi
 
+  if ! apt_candidate_available_v2 "${pkg}"; then
+    if pkg_seen_in_apt_history_v2 "${pkg}"; then
+      log "SKIP" "[REPO:MISSING] ${pkg} no disponible hoy (detectado antes en history.log; revisar repos externos)"
+    else
+      log "SKIP" "[REPO:MISSING] ${pkg} no disponible en indices APT actuales (posible repo externo no configurado)"
+    fi
+    return 0
+  fi
+
   if pkg_installed "${pkg}"; then
-    log "INFO" "Reinstalando ${pkg}"
-    run_cmd apt install --reinstall -y "${pkg}"
+    show_spinner_v2 "Reinstalando ${pkg}..." run_cmd apt install --reinstall -y "${pkg}"
   else
     apt_install "${pkg}"
   fi
@@ -295,12 +411,16 @@ ensure_flatpak() {
 
 install_flatpak_app() {
   local app_id="$1"
-  if flatpak list --app --columns=application 2>/dev/null | grep -q "^${app_id}$"; then
+  if ! flatpak_app_available_v2 "${app_id}"; then
+    log "SKIP" "[FLATPAK:MISSING] ${app_id} no disponible en flathub o remoto no configurado"
+    return 0
+  fi
+
+  if flatpak list --app --columns=application 2>/dev/null | grep -Fxq "${app_id}"; then
     log "SKIP" "Flatpak ${app_id} ya instalado"
     return 0
   fi
-  log "INFO" "Instalando Flatpak ${app_id}"
-  run_cmd flatpak install -y --noninteractive flathub "${app_id}"
+  show_spinner_v2 "Instalando Flatpak ${app_id}..." run_cmd flatpak install -y --noninteractive flathub "${app_id}"
 }
 
 remove_flatpak_app_if_installed() {
@@ -310,7 +430,7 @@ remove_flatpak_app_if_installed() {
     return 0
   fi
 
-  if ! flatpak list --app --columns=application 2>/dev/null | grep -q "^${app_id}$"; then
+  if ! flatpak list --app --columns=application 2>/dev/null | grep -Fxq "${app_id}"; then
     log "SKIP" "Flatpak ${app_id} no instalado"
     return 0
   fi
@@ -343,6 +463,20 @@ check_package_compatibility_v2() {
 
   printf -v "${__reason_var}" '%s' "${reason}"
   return 0
+}
+
+apt_candidate_available_v2() {
+  local pkg="$1"
+  local base_pkg="${pkg%:i386}"
+  apt-cache show "${base_pkg}" >/dev/null 2>&1
+}
+
+flatpak_app_available_v2() {
+  local app_id="$1"
+
+  command -v flatpak >/dev/null 2>&1 || return 1
+  flatpak remotes --columns=name 2>/dev/null | grep -qx 'flathub' || return 1
+  flatpak remote-info flathub "${app_id}" >/dev/null 2>&1
 }
 
 append_once() {

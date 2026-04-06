@@ -26,9 +26,12 @@ Incluye:
 Objetivo: productividad y documentos.
 
 Incluye:
-- libreoffice (writer/calc/impress)
+- libreoffice (priorizado por Flatpak en los flujos actuales)
 - visores de documentos
 - cliente de correo
+
+Nota:
+- si se detecta LibreOffice por Flatpak, se purga el paquete APT para evitar apps duplicadas en el menu.
 
 ### multimedia
 
@@ -137,6 +140,18 @@ Incluye:
 - blender
 - freecad
 
+### ai_environments
+
+Objetivo: base de IA para ML/DL y uso de agentes.
+
+Incluye:
+- python3 + venv + pip + stack cientifico base
+- utilidades de datos (numpy/pandas/sklearn/matplotlib/scipy)
+- utilidades de runtime para pipelines IA (h5py, pillow, tqdm, requests, yaml)
+
+Nota:
+- frameworks pesados (torch/tensorflow/transformers) se recomiendan por proyecto en venv para evitar conflicto global.
+
 ### gaming
 
 Objetivo: gaming nativo Linux.
@@ -227,6 +242,29 @@ En V1 se puede eliminar por categoria con proteccion de impacto:
 - evita purgar paquetes compartidos con categorias instaladas
 - limpia Flatpak asociado cuando no esta compartido
 
+### Verify category
+
+En V1 se agrega verificacion por categoria:
+
+- valida presencia de paquetes esperados por modulo
+- valida presencia de Flatpak esperados por modulo
+- reporta faltantes y advertencias de compatibilidad
+
+### Limpiar duplicados (BD apps)
+
+En V1 se agrega limpieza de duplicados desde catalogo JSON:
+
+- usa reglas de preferencia apt/flatpak
+- purga variante no preferida cuando la preferida esta instalada
+- usa la biblioteca `config/app-library.json`
+
+### Perfilado GPU por categoria
+
+V1 aplica paquetes orientados por vendor/proposito sin tocar kernel:
+
+- propositos: general, gaming, design, ai
+- vendors: intel, amd, nvidia, auto
+
 ### Limpiar innecesarios
 
 El flujo incluye limpieza de paquetes reemplazados por alternativas modernas y limpieza de residuos del sistema.
@@ -248,6 +286,7 @@ Existe una opcion para:
 
 - comprobar actualizaciones disponibles
 - configurar una tarea cron de mantenimiento con log
+- eliminar la tarea cron de mantenimiento y su script asociado
 
 ## Restriccion
 

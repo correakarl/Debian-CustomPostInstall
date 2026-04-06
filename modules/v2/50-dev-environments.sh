@@ -17,6 +17,13 @@ install_profile_packages() {
     return 0
   fi
 
+  if [[ -n "${apt_list}" ]]; then
+    log "INFO" "[PLAN][APT][${profile}] ${apt_list}"
+  fi
+  if [[ -n "${flatpak_list}" ]]; then
+    log "INFO" "[PLAN][FLATPAK][${profile}] ${flatpak_list}"
+  fi
+
   for pkg in ${apt_list}; do
     apt_install "${pkg}"
   done

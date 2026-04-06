@@ -39,7 +39,7 @@ Todo sin modificar ni reemplazar kernel.
 - instalacion, correccion, limpieza, health, logs
 
 4. Registro y salida
-- logging en /var/log/debian-postinstall-v2-*.log
+- logging en ./.runtime-logs/debian-postinstall-v2-*.log
 
 ## Perfiles
 
@@ -51,6 +51,7 @@ Definidos en [lib/v2/profiles.sh](../../lib/v2/profiles.sh):
 - dev-mobile
 - gaming
 - creator
+- ai-ml
 - minimal
 
 Consideraciones de perfiles:
@@ -58,6 +59,7 @@ Consideraciones de perfiles:
 - VS Code se mantiene disponible para ambientes de desarrollo y creator/workstation donde se define.
 - VirtualBox se incluye en perfiles orientados a desarrollo/uso general.
 - Gaming usa base APT para stack grafico/rendimiento y detecta Steam/Heroic/ProtonUp-Qt tambien cuando ya existen por Flatpak.
+- ai-ml usa base esencial de IA/ML y habilita seleccion de bundles interdependientes (ml-core, dl-runtime, agents-stack).
 
 ## Modos
 
@@ -87,9 +89,13 @@ Consideraciones de perfiles:
 - clean-files: limpieza de temporales y descargas de instaladores no necesarios
 - optimize: reaplica tuning base
 - updates-cron: valida actualizaciones y configura cron de mantenimiento
+- remove-cron: elimina cron/script de mantenimiento instalado por V2
 - logs: muestra ultimo log
 - refs: muestra referencias oficiales
 - health: panel de estado
+- verify: auditoria de integridad y compatibilidad por perfil
+- verify-category: auditoria de integridad por categoria
+- clean-duplicates: limpieza de duplicados segun biblioteca JSON de aplicaciones
 
 ## Compatibilidad y reglas visibles
 
@@ -99,6 +105,40 @@ La instalacion de paquetes evalua compatibilidad y muestra flags:
 - [COMPAT:BLOCK]
 
 Esto evita instalaciones no aptas por arquitectura o recursos en casos definidos.
+
+## Biblioteca de aplicaciones y fuentes
+
+Se incorpora una biblioteca JSON en [config/app-library.json](../../config/app-library.json) para:
+
+- centralizar fuentes (APT/Flathub)
+- declarar inventario por categoria
+- definir reglas de deduplicacion (preferencia apt o flatpak)
+- habilitar la accion `clean-duplicates`
+
+Estructura normalizada del catalogo:
+
+- `debian13_base`: base esencial + optimizacion recomendada
+- `debian13_replacements`: reemplazos de paquetes legacy/base
+- `category_classification`: clasificacion por categoria (esencial/opcional/pesado)
+- `integrity_rules`: reglas de referencia para verificadores
+
+Nota de compatibilidad:
+
+- Se preservan los nodos `categories.<perfil>.apt/flatpak` para que las acciones actuales sigan funcionando sin migraciones adicionales.
+
+Politica de origen comun:
+
+- V1 y V2 consumen el mismo catalogo JSON mediante `lib/app-catalog.sh`.
+- Nuevos cambios de inventario deben entrar primero por `config/app-library.json`.
+
+## Perfilado GPU por uso
+
+Se incorpora modulo de perfilado GPU en [modules/v2/80-gpu-profiles.sh](../../modules/v2/80-gpu-profiles.sh):
+
+- `--gpu-profile`: auto/intel/amd/nvidia/none
+- `--gpu-purpose`: general/gaming/design/ai
+
+Objetivo: mejorar compatibilidad software-hardware por categoria sin forzar cambios de kernel.
 
 ## Salud y ZRAM
 
@@ -146,6 +186,8 @@ Para gaming, la via principal sigue siendo nativa Linux:
 - ajustes sysctl de red/memoria
 - UX ligera para evitar carga innecesaria en background
 - reemplazo de editores legacy (mousepad) por gedit en flujo clean-obsolete
+- fixes de energia XFCE (xfconf + logind override) para reducir bloqueos/suspension inesperada
+- deduplicado de Office: prioridad a LibreOffice Flatpak cuando esta presente
 
 ## Restriccion de kernel
 

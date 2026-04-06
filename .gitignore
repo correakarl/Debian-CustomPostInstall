@@ -1,6 +1,7 @@
 # Logs and runtime artifacts
 *.log
 *.tmp
+.runtime-logs/
 
 # Backup artifacts
 *.bak

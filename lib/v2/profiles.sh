@@ -8,56 +8,12 @@ set -o pipefail
 
 profile_packages_apt() {
   local profile="$1"
-  case "${profile}" in
-    workstation)
-      echo "code firefox-esr libreoffice-writer libreoffice-calc thunderbird gedit virtualbox openvpn wireguard-tools network-manager-openvpn network-manager-openvpn-gnome"
-      ;;
-    dev-web)
-      echo "code build-essential git-lfs gh ripgrep fd-find fzf httpie docker-ce docker-ce-cli containerd.io docker-compose-plugin"
-      ;;
-    dev-app)
-      echo "code build-essential cmake ninja-build clang gdb valgrind openjdk-21-jdk maven gradle virtualbox"
-      ;;
-    dev-mobile)
-      echo "code openjdk-21-jdk android-sdk-platform-tools-adb android-sdk-platform-tools-common fastboot qemu-kvm"
-      ;;
-    gaming)
-      echo "steam gamemode libgamemode0 mangohud vulkan-tools mesa-vulkan-drivers libgl1-mesa-dri mesa-utils"
-      ;;
-    creator)
-      echo "code gimp inkscape krita blender kdenlive audacity ffmpeg obs-studio gedit"
-      ;;
-    minimal)
-      echo "neovim htop tmux curl wget git"
-      ;;
-    *)
-      echo ""
-      ;;
-  esac
+  catalog_get_profile_apt "${APP_CATALOG_JSON}" "${profile}"
 }
 
 profile_packages_flatpak() {
   local profile="$1"
-  case "${profile}" in
-    workstation)
-      echo "md.obsidian.Obsidian"
-      ;;
-    dev-web)
-      echo "com.getpostman.Postman"
-      ;;
-    dev-mobile)
-      echo "com.google.AndroidStudio"
-      ;;
-    gaming)
-      echo "com.heroicgameslauncher.hgl net.lutris.Lutris com.valvesoftware.Steam net.davidotek.pupgui2 org.freedesktop.Platform.VulkanLayer.MangoHud"
-      ;;
-    creator)
-      echo "com.obsproject.Studio"
-      ;;
-    *)
-      echo ""
-      ;;
-  esac
+  catalog_get_profile_flatpak "${APP_CATALOG_JSON}" "${profile}"
 }
 
 print_profiles_help() {
@@ -69,6 +25,7 @@ Perfiles disponibles:
   dev-mobile   - Entorno base para desarrollo mobile
   gaming       - Gaming nativo Linux (sin Bottles para launcher de juegos)
   creator      - Diseno y creacion multimedia
+  ai-ml        - Entorno de IA para ML/DL y agentes (base minimal + bundles)
   minimal      - Entorno minimo y liviano
 EOF
 }
@@ -87,8 +44,12 @@ Acciones disponibles:
   clean-files - Eliminar temporales y descargas de instaladores no necesarios
   optimize    - Reaplicar optimizaciones del sistema
   updates-cron - Comprobar actualizaciones y configurar cron de mantenimiento
+  remove-cron - Eliminar cron/script de mantenimiento instalado por V2
   logs        - Mostrar ultimo registro de logs
   refs        - Mostrar referencias oficiales
   health      - Mostrar panel de estado de salud
+  verify      - Verificar integridad de herramientas y estado del perfil
+  verify-category - Verificar integridad por categoria
+  clean-duplicates - Limpiar duplicados segun biblioteca JSON de aplicaciones
 EOF
 }
