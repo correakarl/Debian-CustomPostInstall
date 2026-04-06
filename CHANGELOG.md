@@ -7,6 +7,11 @@ Formato basado en Keep a Changelog y versionado semantico (SemVer).
 ## [Unreleased]
 
 ### Added
+- V3: Nuevo flujo operativo con acciones `install`, `check-fix` y `verify` para unificar instalacion y comprobacion en un mismo script.
+- V3: Nueva accion `verify-category` con parametro `--category` para auditar una categoria puntual con paridad funcional mas cercana a V2.
+- V3: Nueva opcion `--list-categories` para descubrir categorias del catalogo directamente desde CLI.
+- Catalogo: Se agrega bloque `v3_optimized` con `option_groups`, `usage_categories`, `capability_detectors` y `package_constraints` para habilitar instalacion condicionada por hardware en futura V3.
+- Catalogo: Nuevos `task_bundles` `sys_admin` (mantenimiento/recuperacion) y `productivity_plus` (captura/audio/bluetooth) en `config/app-library.json`.
 - V2: Nuevo perfil `ai-ml` para entorno de IA (ML/DL/agentes) con base esencial.
 - V2: Nuevo modulo `modules/v2/70-ai-environments.sh` para instalar stacks IA por bundles.
 - V2: Nuevo parametro `--ai-bundles` y selector interactivo de bundles (`ml-core`, `dl-runtime`, `agents-stack`).
@@ -26,6 +31,14 @@ Formato basado en Keep a Changelog y versionado semantico (SemVer).
 - Proyecto: Archivo `LICENSE` (CC BY 4.0) y `NOTICE` para formalizar licencia y atribucion.
 
 ### Changed
+- V3: `post-install-v3.sh` ahora usa rutas robustas basadas en `ROOT_DIR`, valida JSON de catalogo al inicio y soporta CLI con `--action`, `--profile`, `--catalog-json`, `--dry-run` y `--list-profiles`.
+- V3: Script marcado como ejecutable para permitir invocacion directa `./post-install-v3.sh`.
+- V3: Se corrige evaluacion de capacidades para detectores no booleanos (ej. `gpu_vendor`) y se mejora parseo de paquetes APT para estructuras array/objeto del catalogo.
+- V3: Se corrige la logica de `enable_i386_architecture` en `dry-run` para evitar cambios reales no deseados y se agrega fase de `pre_actions_global` por perfil.
+- V3: Se agrega resumen final de verificacion (`presentes/faltantes/fallos_instalacion`) y codigos de salida diferenciados para `verify` y `check-fix`.
+- Catalogo: `task_bundles.sys_admin` y `task_bundles.productivity_plus` ahora incluyen `conditional_apt` para casos dependientes de capacidad (ej. Bluetooth/SMART).
+- Biblioteca JSON actualizada a `1.1.3` para base de organizacion V3-Optimized hardware-aware.
+- Biblioteca JSON actualizada a `1.1.2` para incluir nuevos bundles operativos (`sys_admin`, `productivity_plus`).
 - V1/V2: cada ejecucion ahora registra marcas `[RUN-START]` y `[RUN-END]` con timestamp, PID, codigo de salida y duracion para trazabilidad de inicio/fin del proceso actual.
 - V2: se agrega rotacion automatica de logs (`./.runtime-logs`) por cantidad y tamano total para evitar crecimiento de disco en ejecuciones frecuentes de `check-fix`.
 - V1: archivo de estado `debian-postinstall-status.log` se recorta automaticamente a las ultimas 4000 lineas para controlar uso de disco.
@@ -60,6 +73,9 @@ Formato basado en Keep a Changelog y versionado semantico (SemVer).
 - V2 centraliza listado de categorias en una sola constante para reducir divergencias.
 
 ### Docs
+- Se crea documentacion exhaustiva por version: [docs/v1/ARCHITECTURE.md](docs/v1/ARCHITECTURE.md), [docs/v2/ARCHITECTURE.md](docs/v2/ARCHITECTURE.md) y [docs/v3/ARCHITECTURE.md](docs/v3/ARCHITECTURE.md).
+- Se agrega guia operativa comparativa [docs/flows/VERSION-SELECTION.md](docs/flows/VERSION-SELECTION.md) con matriz de decision rapida V1/V2/V3.
+- README actualiza el indice de arquitectura para cubrir V1/V2/V3.
 - Documentacion actualizada con paridad V1/V2 para AI, verificacion por categoria, limpieza de duplicados y perfilado GPU.
 - Archivos tocados: README.md, docs/modules.md, docs/v2/ARCHITECTURE.md, config/app-library.json.
 

@@ -1,9 +1,10 @@
 # Debian Custom Post Install
 
-Automatizacion de post-instalacion para Debian 13 (Trixie) con dos enfoques complementarios:
+Automatizacion de post-instalacion para Debian 13 (Trixie) con tres enfoques complementarios:
 
 - V1 interactiva monolitica, orientada a categorias de uso: [post-install.sh](post-install.sh)
 - V2 modular por acciones, perfiles y modos: [post-install-v2.sh](post-install-v2.sh)
+- V3 declarativa para install/check-fix/verify por perfil o categoria: [post-install-v3.sh](post-install-v3.sh)
 
 ## Objetivo del proyecto
 
@@ -27,7 +28,16 @@ Este proyecto no modifica ni reemplaza el kernel en ninguna version.
 - [lib/v2/profiles.sh](lib/v2/profiles.sh): matriz de perfiles y acciones.
 - [modules/v2](modules/v2): modulos V2 del sistema.
 - [docs/modules.md](docs/modules.md): catalogo de categorias/modulos.
-- [docs/v2/ARCHITECTURE.md](docs/v2/ARCHITECTURE.md): arquitectura operativa V2.
+- [docs/v1/ARCHITECTURE.md](docs/v1/ARCHITECTURE.md): arquitectura operativa V1 (exhaustiva).
+- [docs/v2/ARCHITECTURE.md](docs/v2/ARCHITECTURE.md): arquitectura operativa V2 (exhaustiva).
+- [docs/v3/ARCHITECTURE.md](docs/v3/ARCHITECTURE.md): arquitectura operativa V3 (exhaustiva).
+
+## Documentacion por version
+
+- V1: [docs/v1/ARCHITECTURE.md](docs/v1/ARCHITECTURE.md)
+- V2: [docs/v2/ARCHITECTURE.md](docs/v2/ARCHITECTURE.md)
+- V3: [docs/v3/ARCHITECTURE.md](docs/v3/ARCHITECTURE.md)
+- Matriz de decision V1/V2/V3: [docs/flows/VERSION-SELECTION.md](docs/flows/VERSION-SELECTION.md)
 
 ## Requisitos
 

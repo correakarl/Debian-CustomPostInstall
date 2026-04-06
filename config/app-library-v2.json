@@ -1,0 +1,1573 @@
+{
+  "meta": {
+    "version": "2.0.0-unified",
+    "generated_for": "debian-13-trixie",
+    "architecture_support": ["amd64", "arm64"],
+    "last_updated": "2026-01-22",
+    "description": "Catálogo unificado con prioridad Flatpak > APT, gestión de versiones vía managers, servicios vía Docker, y cero duplicados",
+    "philosophy": "Flatpak primero para GUI, managers para lenguajes, Docker para servicios, APT solo para sistema y dependencias críticas"
+  },
+
+  "installation_priority": {
+    "global_order": ["flatpak", "manager", "docker", "apt", "third_party"],
+    "reasoning": {
+      "flatpak": "Apps GUI aisladas, actualizadas, sin conflictos de dependencias",
+      "manager": "Versiones múltiples de lenguajes sin contaminar el sistema",
+      "docker": "Servicios y BDs en contenedores, fáciles de limpiar/actualizar",
+      "apt": "Solo para paquetes de sistema, drivers, herramientas CLI esenciales",
+      "third_party": "Último recurso cuando no hay alternativa en repos oficiales"
+    },
+    "duplicate_strategy": "if_flatpak_selected_skip_apt_equivalent",
+    "conflict_resolution": "prefer_higher_priority_source"
+  },
+
+  "sources": {
+    "apt": {
+      "main": {
+        "url": "http://deb.debian.org/debian/",
+        "components": ["main"],
+        "priority": 1
+      },
+      "contrib": {
+        "url": "http://deb.debian.org/debian/",
+        "components": ["contrib"],
+        "priority": 2,
+        "requires_user_consent": true
+      },
+      "non_free": {
+        "url": "http://deb.debian.org/debian/",
+        "components": ["non-free"],
+        "priority": 3,
+        "requires_user_consent": true
+      },
+      "non_free_firmware": {
+        "url": "http://deb.debian.org/debian/",
+        "components": ["non-free-firmware"],
+        "priority": 4,
+        "auto_enable_for_hardware": true
+      },
+      "security": {
+        "url": "http://security.debian.org/debian-security",
+        "components": ["security"],
+        "priority": 0
+      },
+      "updates": {
+        "url": "http://deb.debian.org/debian/",
+        "components": ["updates"],
+        "priority": 1
+      },
+      "backports": {
+        "url": "http://deb.debian.org/debian",
+        "components": ["trixie-backports"],
+        "priority": 5,
+        "pin_priority": 100,
+        "note": "Para paquetes más recientes de forma controlada"
+      }
+    },
+    "flatpak": {
+      "flathub": {
+        "url": "https://flathub.org/repo/flathub.flatpakrepo",
+        "auto_install_runtime": true,
+        "priority": 1,
+        "install_if_missing": true
+      }
+    },
+    "managers": {
+      "nvm": {
+        "install_script": "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash",
+        "profile_integration": "~/.bashrc",
+        "category": ["dev-web", "dev-app"]
+      },
+      "pyenv": {
+        "install_deps_apt": ["make", "build-essential", "libssl-dev", "zlib1g-dev", "libbz2-dev", "libreadline-dev", "libsqlite3-dev", "wget", "curl", "llvm", "ncurses-dev", "xz-utils", "tk-dev", "libxml2-dev", "libxmlsec1-dev", "libffi-dev", "liblzma-dev"],
+        "install_script": "curl https://pyenv.run | bash",
+        "profile_integration": "~/.bashrc",
+        "category": ["ai-ml", "dev-app", "dev-web"]
+      },
+      "rbenv": {
+        "install_deps_apt": ["autoconf", "bison", "build-essential", "libssl-dev", "libyaml-dev", "libreadline6-dev", "zlib1g-dev", "libncurses5-dev", "libffi-dev", "libgdbm-dev"],
+        "install_script": "curl -fsSL https://github.com/rbenv/rbenv-installer/raw/HEAD/bin/rbenv-installer | bash",
+        "profile_integration": "~/.bashrc",
+        "category": ["dev-app"]
+      },
+      "sdkman": {
+        "install_script": "curl -s https://get.sdkman.io | bash",
+        "profile_integration": "~/.bashrc",
+        "category": ["dev-app", "ai-ml"]
+      }
+    },
+    "docker": {
+      "engine": {
+        "apt_repo": "https://download.docker.com/linux/debian",
+        "components": ["stable"],
+        "gpg_key": "https://download.docker.com/linux/debian/gpg",
+        "install_daemon": true,
+        "add_user_to_docker_group": true
+      },
+      "compose": {
+        "plugin": "docker-compose-plugin",
+        "standalone_fallback": true
+      }
+    },
+    "third_party": {
+      "steam": {
+        "apt_repo": "https://repo.steampowered.com/steam/",
+        "arch": ["amd64", "i386"],
+        "components": ["steam"],
+        "gpg_key": "https://repo.steampowered.com/steam/archive/keyring/steam.gpg",
+        "category": ["gaming", "windows_compat"],
+        "priority_override": "apt_for_gaming_integration"
+      },
+      "vscode": {
+        "apt_repo": "https://packages.microsoft.com/repos/code",
+        "components": ["main"],
+        "gpg_key": "https://packages.microsoft.com/keys/microsoft.asc",
+        "category": ["workstation", "dev-web", "dev-app", "creator"],
+        "flatpak_alternative": "com.visualstudio.code"
+      },
+      "brave": {
+        "apt_repo": "https://brave.com/linux/",
+        "components": ["main"],
+        "gpg_key": "https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg",
+        "category": ["workstation", "browsers"],
+        "flatpak_alternative": "com.brave.Browser"
+      },
+      "signal": {
+        "apt_repo": "https://updates.signal.org/desktop/apt",
+        "components": ["main"],
+        "gpg_key": "https://updates.signal.org/desktop/apt/keys.asc",
+        "category": ["communication"],
+        "flatpak_alternative": "org.signal.Signal"
+      }
+    }
+  },
+
+  "capability_detectors": {
+    "gpu_vendor": {
+      "probe": ["lspci -nn | grep -Ei 'VGA|3D|Display' | grep -oiE 'nvidia|amd|intel|broadcom'"],
+      "fallback": ["glxinfo -B 2>/dev/null | grep -i 'OpenGL renderer'", "cat /sys/class/drm/card*/device/vendor 2>/dev/null"],
+      "output_map": {"8086": "intel", "10de": "nvidia", "1002": "amd", "14e4": "broadcom"},
+      "description": "Detecta fabricante de GPU para selección automática de drivers",
+      "affects_categories": ["gaming", "creator", "ai-ml", "design_graphic", "design_video", "design_3d"]
+    },
+    "gpu_vram_gb": {
+      "probe": ["lspci -v -s $(lspci | grep -i vga | cut -d' ' -f1) 2>/dev/null | grep -i 'prefetchable memory' | awk '{print int($5/1024)}'"],
+      "fallback": ["nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null"],
+      "description": "VRAM disponible en GB para determinar viabilidad de cargas GPU",
+      "thresholds": {"ai_training": 8, "gaming_ultra": 6, "video_editing_4k": 4, "basic_3d": 2}
+    },
+    "cpu_features": {
+      "probe": ["grep -oE 'avx2|avx512|sse4_2|fma|aes|vmx|svm' /proc/cpuinfo | sort -u"],
+      "description": "Extensiones CPU para optimización de compilación y virtualización",
+      "affects_categories": ["dev-app", "ai-ml", "cybersec", "virtualization"]
+    },
+    "cpu_cores_threads": {
+      "probe": ["nproc --all"],
+      "description": "Número de núcleos/hilos para ajustar paralelización",
+      "affects_categories": ["dev-app", "ai-ml", "virtualization", "creator", "cybersec"]
+    },
+    "ram_total_gb": {
+      "probe": ["grep MemTotal /proc/meminfo | awk '{print int($2/1024/1024)}'"],
+      "description": "Memoria RAM total en GB para tuning adaptativo",
+      "affects_categories": ["optimization", "ai-ml", "virtualization", "gaming", "cybersec"]
+    },
+    "storage_type": {
+      "probe": ["lsblk -d -o NAME,ROTA,TYPE | grep -E 'disk' | head -1 | awk '{print $2}'"],
+      "output_map": {"0": "ssd", "1": "hdd"},
+      "fallback": ["nvme list 2>/dev/null | grep -q . && echo 'nvme'"],
+      "description": "Tipo de almacenamiento principal para optimización de I/O",
+      "affects_categories": ["optimization", "backup", "virtualization", "ai-ml"]
+    },
+    "storage_free_gb": {
+      "probe": ["df -BG / | awk 'NR==2 {print int($4)}'"],
+      "description": "Espacio libre en GB para validar instalación de paquetes pesados",
+      "thresholds": {"gaming": 50, "creator": 30, "ai-ml": 20, "virtualization": 40, "cybersec": 25}
+    },
+    "bluetooth_adapter": {
+      "probe": ["rfkill list bluetooth 2>/dev/null | grep -q 'Soft blocked: no'", "hciconfig -a 2>/dev/null | grep -q 'BD Address'"],
+      "fallback": ["lspci -nn | grep -i bluetooth", "lsusb | grep -i bluetooth"],
+      "description": "Presencia de adaptador Bluetooth",
+      "affects_categories": ["ux_ui", "gaming", "communication"]
+    },
+    "battery_present": {
+      "probe": ["ls /sys/class/power_supply/BAT* 2>/dev/null | grep -q ."],
+      "fallback": ["upower -e | grep -i battery | grep -q ."],
+      "description": "Equipo portátil con batería para activar optimizaciones energéticas",
+      "affects_categories": ["optimization"]
+    },
+    "uefi_system": {
+      "probe": ["test -d /sys/firmware/efi"],
+      "fallback": ["efibootmgr -v 2>/dev/null | grep -q ."],
+      "description": "Sistema iniciado en modo UEFI",
+      "affects_categories": ["security", "virtualization"]
+    },
+    "network_speed_mbps": {
+      "probe": ["ethtool $(ip route | grep default | awk '{print $5}' | head -1) 2>/dev/null | grep Speed | awk '{print $2}'"],
+      "description": "Velocidad de red para ajustar configuraciones de streaming/backup",
+      "affects_categories": ["remote", "backup", "creator", "cybersec"]
+    },
+    "touchscreen_present": {
+      "probe": ["xinput list | grep -i 'touch' | grep -q .", "libinput list-devices 2>/dev/null | grep -i 'Tap to click' | grep -q ."],
+      "description": "Pantalla táctil para activar herramientas UX/UI específicas",
+      "affects_categories": ["ux_ui"]
+    },
+    "docker_capable": {
+      "probe": ["grep -E 'vmx|svm' /proc/cpuinfo | head -1", "test -c /dev/kvm"],
+      "description": "Capacidad de virtualización para ejecutar contenedores Docker eficientemente",
+      "affects_categories": ["dev-web", "virtualization", "ai-ml", "cybersec"]
+    }
+  },
+
+  "install_policies": {
+    "global": {
+      "skip_when_capability_missing": true,
+      "allow_manual_override": true,
+      "log_all_decisions": true,
+      "log_path": "/var/log/debian-postinstall.log",
+      "default_install_class": "safe",
+      "dry_run_support": true,
+      "auto_confirm_prompts": false,
+      "rollback_on_failure": true
+    },
+    "package_priority": {
+      "order": ["flatpak", "manager", "docker", "apt", "third_party"],
+      "flatpak_prefer_reason": "Aislamiento, actualizaciones independientes, sin contaminación del sistema",
+      "manager_prefer_reason": "Múltiples versiones por proyecto, sin root, fácil switching",
+      "docker_prefer_reason": "Servicios efímeros, reproducible, fácil cleanup",
+      "apt_only_when": ["system_daemon", "kernel_module", "hardware_driver", "cli_tool_no_flatpak", "dependency_for_other"]
+    },
+    "duplicate_prevention": {
+      "strategy": "block_apt_if_flatpak_selected",
+      "check_menu_duplicates": true,
+      "check_library_conflicts": true,
+      "auto_remove_lower_priority": true,
+      "exceptions": ["steam", "nvidia-driver"]
+    },
+    "gaming_specific": {
+      "auto_enable_i386_architecture": true,
+      "auto_configure_steam_proton": true,
+      "install_32bit_libs_for_wine": true,
+      "prefer_native_over_wine": true,
+      "steam_source_priority": "apt_over_flatpak_for_driver_integration"
+    },
+    "dev_specific": {
+      "use_nvm_not_nodejs_apt": true,
+      "use_pyenv_not_python3_dev_for_ml": true,
+      "use_docker_not_native_db": true,
+      "use_sdkman_not_openjdk_apt_for_java": true,
+      "install_build_essential_once": true
+    },
+    "security_specific": {
+      "enable_apparmor_default": true,
+      "audit_critical_actions": true,
+      "require_sudo_for_sensitive_ops": true,
+      "no_root_flatpak": true
+    },
+    "cleanup": {
+      "remove_orphaned_deps": true,
+      "clean_apt_cache_after": true,
+      "flatpak_uninstall_unused_runtimes": true,
+      "docker_prune_after_installs": false
+    }
+  },
+
+  "duplicate_registry": {
+    "description": "Mapeo de paquetes equivalentes en diferentes fuentes para evitar instalaciones duplicadas",
+    "entries": {
+      "libreoffice": {
+        "flatpak": "org.libreoffice.LibreOffice",
+        "apt": ["libreoffice", "libreoffice-*"],
+        "preferred": "flatpak",
+        "action": "install_flatpak_skip_apt",
+        "reason": "Versión más actualizada, sin conflictos con sistema"
+      },
+      "firefox": {
+        "flatpak": "org.mozilla.firefox",
+        "apt": ["firefox-esr", "firefox"],
+        "preferred": "user_choice",
+        "note": "ESR para estabilidad empresarial, Flatpak para versión latest"
+      },
+      "chromium": {
+        "flatpak": "org.chromium.Chromium",
+        "apt": ["chromium"],
+        "preferred": "flatpak",
+        "reason": "Actualizaciones automáticas sin esperar repos Debian"
+      },
+      "vscode": {
+        "flatpak": "com.visualstudio.code",
+        "apt": ["code"],
+        "third_party": "https://packages.microsoft.com/repos/code",
+        "preferred": "flatpak",
+        "reason": "Aislamiento de extensiones, fácil rollback"
+      },
+      "spotify": {
+        "flatpak": "com.spotify.Client",
+        "apt": [],
+        "third_party": "https://download.spotify.com/debian",
+        "preferred": "flatpak",
+        "reason": "Única opción mantenida oficialmente"
+      },
+      "discord": {
+        "flatpak": "com.discordapp.Discord",
+        "apt": [],
+        "third_party": "https://discord.com/api/download?platform=linux&format=deb",
+        "preferred": "flatpak",
+        "reason": "Actualizaciones automáticas, sandboxing"
+      },
+      "telegram": {
+        "flatpak": "org.telegram.desktop",
+        "apt": ["telegram-desktop"],
+        "preferred": "flatpak",
+        "reason": "Versión más reciente, características beta"
+      },
+      "signal": {
+        "flatpak": "org.signal.Signal",
+        "apt": ["signal-desktop"],
+        "preferred": "apt",
+        "reason": "Mejor integración con notificaciones del sistema y tray icon"
+      },
+      "steam": {
+        "flatpak": "com.valvesoftware.Steam",
+        "apt": ["steam"],
+        "preferred": "apt",
+        "exception_reason": "Mejor integración con drivers GPU, arquitectura i386, y Proton",
+        "note": "Flatpak disponible como alternativa sandboxed si se prefiere"
+      },
+      "obs_studio": {
+        "flatpak": "com.obsproject.Studio",
+        "apt": ["obs-studio"],
+        "preferred": "flatpak",
+        "reason": "Plugins más actualizados, dependencias aisladas"
+      },
+      "gimp": {
+        "flatpak": "org.gimp.GIMP",
+        "apt": ["gimp"],
+        "preferred": "flatpak",
+        "reason": "Versión más reciente, plugins sin conflictos"
+      },
+      "blender": {
+        "flatpak": "org.blender.Blender",
+        "apt": ["blender"],
+        "preferred": "flatpak",
+        "reason": "Versión estable más reciente, addons fáciles de gestionar"
+      },
+      "postman": {
+        "flatpak": "com.getpostman.Postman",
+        "apt": [],
+        "third_party": "https://dl.pstmn.io/download/latest/linux64",
+        "preferred": "flatpak",
+        "reason": "Única forma oficial de distribución en Linux"
+      }
+    }
+  },
+
+  "categories": {
+    "optimization_base": {
+      "meta": {
+        "label": "Optimización Base del Sistema",
+        "description": "Herramientas administrativas, de gestión, monitoreo y optimización del SO",
+        "priority": "critical",
+        "recommended_for": ["all"],
+        "install_order": 1
+      },
+      "packages": {
+        "flatpak": [],
+        "managers": [],
+        "docker": [],
+        "apt": {
+          "essential": [
+            "curl", "wget", "git", "ca-certificates", "gnupg", "jq",
+            "apt-transport-https", "software-properties-common"
+          ],
+          "optimization": [
+            "zram-tools", "earlyoom", "ananicy-cpp", "irqbalance",
+            "tlp", "thermald", "profile-sync-daemon", "preload",
+            "ionice", "cpupower-utils"
+          ],
+          "monitoring": [
+            "htop", "btop", "glances", "nvtop", "sysstat", "iotop", "iftop", "nethogs"
+          ],
+          "administration": [
+            "gparted", "gnome-disk-utility", "timeshift", "smartmontools",
+            "fwupd", "logrotate", "systemd-coredump", "journalctl"
+          ],
+          "security_base": [
+            "ufw", "fail2ban", "apparmor", "apparmor-utils",
+            "auditd", "chkrootkit", "rkhunter", "lynis"
+          ],
+          "networking": [
+            "network-manager", "network-manager-gnome", "ethtool", "iw", "wireless-tools"
+          ]
+        },
+        "third_party": []
+      },
+      "conditional_packages": [
+        {
+          "package": "tlp",
+          "source": "apt",
+          "requires_any": ["battery_present"],
+          "install_class": "conditional",
+          "reason": "Solo útil en portátiles con batería"
+        },
+        {
+          "package": "nvtop",
+          "source": "apt",
+          "requires_any": ["gpu_vendor"],
+          "install_class": "adaptive",
+          "reason": "Monitoreo GPU específico por fabricante"
+        },
+        {
+          "package": "zram-tools",
+          "source": "apt",
+          "conditional_params": {
+            "ram_total_gb < 8": {"zram_size": "50%"},
+            "ram_total_gb >= 8": {"zram_size": "25%"}
+          },
+          "install_class": "adaptive"
+        }
+      ],
+      "post_actions": [
+        "enable_zram_with_adaptive_size",
+        "configure_earlyoom_thresholds",
+        "setup_timeshift_auto_snapshots",
+        "enable_fwupd_refresh_timer",
+        "apply_sysctl_optimizations"
+      ],
+      "sysctl_tweaks": {
+        "vm.swappiness": "10",
+        "vm.vfs_cache_pressure": "50",
+        "kernel.sysrq": "1",
+        "net.core.netdev_max_backlog": "5000",
+        "fs.inotify.max_user_watches": "524288"
+      }
+    },
+
+    "ux_ui_enhancement": {
+      "meta": {
+        "label": "Mejora de UX/UI y Experiencia de Escritorio",
+        "description": "Herramientas para personalización, accesibilidad y productividad visual",
+        "priority": "high",
+        "recommended_for": ["workstation", "creator", "general_desktop"],
+        "install_order": 2
+      },
+      "packages": {
+        "flatpak": [
+          "com.github.tchx84.Flatseal",
+          "org.gnome.World.PikaBackup",
+          "org.gnome.clocks",
+          "com.rafaelmardojai.Blanket"
+        ],
+        "managers": [],
+        "docker": [],
+        "apt": {
+          "customization": [
+            "gnome-tweaks", "dconf-editor", "papirus-icon-theme",
+            "fonts-noto", "fonts-firacode", "fonts-jetbrains-mono"
+          ],
+          "productivity": [
+            "flameshot", "copyq", "rofi", "ulauncher",
+            "pavucontrol", "pamixer", "blueman", "network-manager-applet"
+          ],
+          "accessibility": [
+            "orca", "onboard", "espeak-ng"
+          ],
+          "notifications": [
+            "dunst", "libnotify-bin"
+          ]
+        },
+        "third_party": []
+      },
+      "conditional_packages": [
+        {
+          "package": "blueman",
+          "source": "apt",
+          "requires_any": ["bluetooth_adapter"],
+          "install_class": "conditional"
+        },
+        {
+          "package": "onboard",
+          "source": "apt",
+          "requires_any": ["touchscreen_present"],
+          "install_class": "optional"
+        }
+      ],
+      "post_actions": [
+        "apply_icon_theme",
+        "configure_flameshot_shortcuts",
+        "setup_copyq_autostart",
+        "enable_dunst_notifications"
+      ]
+    },
+
+    "workstation_ofimatica": {
+      "meta": {
+        "label": "Ofimática y Productividad General",
+        "description": "Suite ofimática, navegación, correo y herramientas de oficina",
+        "priority": "high",
+        "recommended_for": ["workstation", "general_desktop", "education"],
+        "install_order": 3
+      },
+      "packages": {
+        "flatpak": [
+          "org.libreoffice.LibreOffice",
+          "org.mozilla.firefox",
+          "org.chromium.Chromium",
+          "org.mozilla.Thunderbird",
+          "md.obsidian.Obsidian"
+        ],
+        "managers": [],
+        "docker": [],
+        "apt": {
+          "utilities": [
+            "evince", "pdfarranger", "simple-scan",
+            "file-roller", "nautilus", "gnome-system-monitor",
+            "gnome-calculator", "gnome-calendar"
+          ],
+          "compression": [
+            "p7zip-full", "unrar", "unzip", "zip", "tar"
+          ],
+          "viewers": [
+            "okular", "eog", "gedit"
+          ]
+        },
+        "third_party": []
+      },
+      "duplicate_handling": {
+        "apply_registry_rules": true,
+        "libreoffice": {"skip_apt_if_flatpak": true},
+        "firefox": {"user_select_source": true},
+        "thunderbird": {"prefer_flatpak": true}
+      },
+      "post_actions": [
+        "dedupe_desktop_entries",
+        "set_default_applications",
+        "configure_mime_types"
+      ]
+    },
+
+    "dev_web": {
+      "meta": {
+        "label": "Desarrollo Web y Backend",
+        "description": "Toolchain para desarrollo web, APIs, contenedores y cloud",
+        "priority": "high",
+        "recommended_for": ["developer", "devops", "student_cs"],
+        "install_order": 4
+      },
+      "packages": {
+        "flatpak": [
+          "com.visualstudio.code",
+          "com.getpostman.Postman",
+          "rest.insomnia.Insomnia",
+          "com.docker.docker",
+          "org.gnome.Shotcut"
+        ],
+        "managers": {
+          "nvm": {
+            "install": true,
+            "default_versions": ["18", "20", "22"],
+            "default_alias": "20",
+            "npm_global_packages": ["npm", "yarn", "pnpm", "typescript", "eslint", "prettier"]
+          },
+          "pyenv": {
+            "install": false,
+            "note": "Usar categoría ai-ml para Python científico"
+          }
+        },
+        "docker": {
+          "install_engine": true,
+          "install_compose": true,
+          "reference_images": {
+            "postgres": "postgres:16-alpine",
+            "mysql": "mysql:8-oracle",
+            "mongo": "mongo:7",
+            "redis": "redis:7-alpine",
+            "nginx": "nginx:alpine",
+            "node_dev": "node:20-alpine"
+          },
+          "docker_compose_templates": {
+            "web_stack": "docker-compose.web.yml",
+            "dev_db": "docker-compose.db.yml"
+          }
+        },
+        "apt": {
+          "cli_productivity": [
+            "ripgrep", "fd-find", "fzf", "bat", "eza", "httpie", "jq",
+            "yq", "tmux", "neovim", "lazygit", "lazydocker", "build-essential"
+          ],
+          "web_tools": [
+            "curl", "wget", "git", "git-lfs", "gh", "pkg-config",
+            "libssl-dev", "zlib1g-dev", "libffi-dev"
+          ],
+          "kubernetes": [
+            "kubectl", "helm", "k9s"
+          ]
+        },
+        "third_party": []
+      },
+      "env_management": {
+        "node": {"manager": "nvm", "avoid_apt_nodejs": true},
+        "python": {"use_system_for_cli_only": true, "use_pyenv_for_projects": true},
+        "php": {"use_docker": true, "avoid_apt_php": true}
+      },
+      "post_actions": [
+        "configure_docker_user_group",
+        "setup_kubectl_autocomplete",
+        "initialize_nvm_with_defaults",
+        "configure_git_global_settings",
+        "create_docker_networks_dev"
+      ],
+      "avoid_installing_via_apt": [
+        "nodejs", "npm", "yarn", "php*", "ruby*", "openjdk-*-jdk"
+      ]
+    },
+
+    "dev_mobile": {
+      "meta": {
+        "label": "Desarrollo Mobile (Android/iOS)",
+        "description": "SDKs, emuladores y herramientas para desarrollo móvil",
+        "priority": "medium",
+        "recommended_for": ["mobile_dev", "cross_platform_dev"],
+        "install_order": 5
+      },
+      "packages": {
+        "flatpak": [
+          "com.google.AndroidStudio",
+          "com.jetbrains.IntelliJIDEA.Community"
+        ],
+        "managers": {
+          "sdkman": {
+            "install": true,
+            "packages": ["gradle", "maven", "groovy"]
+          }
+        },
+        "docker": {
+          "install_engine": true,
+          "reference_images": {
+            "android_sdk": "butomo1989/docker-android",
+            "flutter": "cirrusci/flutter:stable"
+          }
+        },
+        "apt": {
+          "android_core": [
+            "openjdk-21-jdk-headless",
+            "android-sdk-platform-tools-common",
+            "android-sdk-platform-tools-adb",
+            "fastboot", "scrcpy"
+          ],
+          "emulation": [
+            "qemu-kvm", "qemu-system-x86", "virt-manager", "libvirt-daemon-system"
+          ],
+          "utilities": [
+            "wget", "curl", "unzip", "zip", "git", "git-lfs", "build-essential"
+          ]
+        },
+        "third_party": []
+      },
+      "conditional_packages": [
+        {
+          "package": "qemu-kvm",
+          "source": "apt",
+          "requires_any": ["cpu_features:vmx|svm", "ram_total_gb:>=8"],
+          "install_class": "conditional",
+          "reason": "Requiere virtualización por hardware y RAM suficiente"
+        }
+      ],
+      "post_actions": [
+        "add_user_to_kvm_and_libvirt_groups",
+        "configure_android_sdk_environment",
+        "setup_scrcpy_shortcuts",
+        "enable_kvm_module_at_boot",
+        "initialize_sdkman_if_selected"
+      ],
+      "avoid_installing_via_apt": [
+        "openjdk-*-jdk", "gradle", "maven"
+      ],
+      "notes": "Usar SDKMAN para Gradle/Maven, Docker para entornos Android emulados, Flatpak para Android Studio"
+    },
+
+    "ai_ml": {
+      "meta": {
+        "label": "Machine Learning / Deep Learning",
+        "description": "Entornos Python, librerías científicas y herramientas de IA",
+        "priority": "high",
+        "recommended_for": ["data_scientist", "ml_engineer", "researcher"],
+        "install_order": 6
+      },
+      "packages": {
+        "flatpak": [],
+        "managers": {
+          "pyenv": {
+            "install": true,
+            "default_versions": ["3.10", "3.11", "3.12"],
+            "default_alias": "3.11",
+            "create_venv_template": "ml-env",
+            "base_packages": ["pip", "setuptools", "wheel"]
+          },
+          "conda_alternative": {
+            "note": "Miniforge recomendado sobre conda oficial para licencia",
+            "install_script": "curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh"
+          }
+        },
+        "docker": {
+          "install_engine": true,
+          "reference_images": {
+            "jupyter_base": "jupyter/base-notebook",
+            "pytorch_cpu": "pytorch/pytorch:2.1.0-cpu",
+            "pytorch_cuda": "pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime",
+            "tensorflow": "tensorflow/tensorflow:latest",
+            "mlflow": "ghcr.io/mlflow/mlflow:latest"
+          },
+          "gpu_support": {
+            "nvidia": "nvidia-container-toolkit",
+            "runtime_flag": "--gpus all"
+          }
+        },
+        "apt": {
+          "python_system_base": [
+            "python3", "python3-venv", "python3-pip", "python3-dev",
+            "python3-setuptools", "python3-wheel"
+          ],
+          "build_deps": [
+            "build-essential", "cmake", "pkg-config",
+            "libssl-dev", "zlib1g-dev", "libbz2-dev", "libreadline-dev",
+            "libsqlite3-dev", "libffi-dev", "liblzma-dev", "libxml2-dev"
+          ],
+          "scientific_system_libs": [
+            "libatlas-base-dev", "libopenblas-dev", "liblapack-dev",
+            "libhdf5-dev", "libopencv-dev"
+          ],
+          "utilities": [
+            "git", "git-lfs", "curl", "wget", "jq", "tmux", "htop"
+          ]
+        },
+        "third_party": {
+          "cuda": {
+            "conditional_on": ["gpu_vendor:nvidia", "gpu_vram_gb:>=4"],
+            "install_method": "nvidia_cuda_repo",
+            "note": "Instalar solo si se requiere entrenamiento local con GPU NVIDIA"
+          }
+        }
+      },
+      "env_management": {
+        "recommended": "pyenv + venv o miniforge",
+        "avoid_system_python_for_ml": true,
+        "project_isolation": "one_env_per_project",
+        "requirements_file": "requirements.txt or environment.yml"
+      },
+      "conditional_packages": [
+        {
+          "package": "nvidia-container-toolkit",
+          "source": "third_party",
+          "requires_any": ["gpu_vendor:nvidia", "docker_capable"],
+          "install_class": "conditional",
+          "reason": "Solo necesario para contenedores con GPU NVIDIA"
+        },
+        {
+          "package": "python3-torch",
+          "source": "apt",
+          "variant_cu118": {"requires_any": ["gpu_vendor:nvidia"]},
+          "variant_cpu": {"default": true},
+          "install_class": "optional",
+          "note": "Preferir instalación vía pip en venv/pyenv para control de versión"
+        }
+      ],
+      "post_actions": [
+        "initialize_pyenv_with_default_python",
+        "create_ml_venv_template",
+        "install_jupyter_kernel_for_user",
+        "configure_gpu_acceleration_if_available",
+        "setup_huggingface_cache_directory",
+        "configure_docker_gpu_runtime_if_nvidia"
+      ],
+      "integrity_checks": {
+        "required_imports": ["numpy", "pandas", "sklearn"],
+        "test_commands": [
+          "python3 -c 'import numpy; print(numpy.__version__)'",
+          "python3 -c 'import pandas; print(pandas.__version__)'"
+        ]
+      },
+      "avoid_installing_via_apt": [
+        "python3-numpy", "python3-pandas", "python3-scipy", "python3-scikit-learn",
+        "python3-torch", "python3-tensorflow", "python3-jupyter*"
+      ],
+      "notes": "Instalar librerías ML vía pip en entornos virtuales gestionados por pyenv/venv para control preciso de versiones y aislamiento"
+    },
+
+    "design_graphic": {
+      "meta": {
+        "label": "Diseño Gráfico y Vectorial",
+        "description": "Herramientas para ilustración, edición de imagen y diseño UI",
+        "priority": "medium",
+        "recommended_for": ["designer", "creator", "ux_ui"],
+        "install_order": 7
+      },
+      "packages": {
+        "flatpak": [
+          "org.gimp.GIMP",
+          "org.inkscape.Inkscape",
+          "org.kde.krita",
+          "org.scribus.Scribus",
+          "org.blender.Blender",
+          "com.github.fontmanager.FontManager"
+        ],
+        "managers": [],
+        "docker": [],
+        "apt": {
+          "color_management": [
+            "argyll", "colord", "colord-gtk"
+          ],
+          "utilities": [
+            "imagemagick", "graphicsmagick", "exiftool", "gthumb",
+            "fontforge", "font-manager"
+          ]
+        },
+        "third_party": []
+      },
+      "duplicate_handling": {
+        "apply_registry_rules": true,
+        "gimp": {"skip_apt_if_flatpak": true},
+        "inkscape": {"skip_apt_if_flatpak": true},
+        "krita": {"skip_apt_if_flatpak": true},
+        "blender": {"skip_apt_if_flatpak": true}
+      },
+      "gpu_acceleration": {
+        "enabled_for": ["krita", "blender"],
+        "requires": ["gpu_vendor"],
+        "fallback_to_cpu": true
+      },
+      "post_actions": [
+        "register_file_associations",
+        "install_additional_fonts_if_requested",
+        "configure_color_profile_if_available",
+        "update_flatpak_app_icons"
+      ]
+    },
+
+    "design_video": {
+      "meta": {
+        "label": "Edición de Video y Audio",
+        "description": "Suite completa para producción multimedia y streaming",
+        "priority": "medium",
+        "recommended_for": ["creator", "streamer", "content_creator"],
+        "install_order": 8
+      },
+      "packages": {
+        "flatpak": [
+          "com.obsproject.Studio",
+          "org.kde.kdenlive",
+          "org.audacityteam.Audacity",
+          "org.shotcut.Shotcut"
+        ],
+        "managers": [],
+        "docker": [],
+        "apt": {
+          "codecs_utilities": [
+            "ffmpeg", "ffprobe", "handbrake-cli", "mkvtoolnix",
+            "libavcodec-extra", "gstreamer1.0-plugins-bad",
+            "gstreamer1.0-plugins-ugly", "gstreamer1.0-libav"
+          ],
+          "audio_system": [
+            "pipewire", "pipewire-pulse", "wireplumber",
+            "jackd2", "qjackctl", "sox", "lame"
+          ]
+        },
+        "third_party": []
+      },
+      "duplicate_handling": {
+        "apply_registry_rules": true,
+        "obs_studio": {"skip_apt_if_flatpak": true},
+        "kdenlive": {"skip_apt_if_flatpak": true},
+        "audacity": {"skip_apt_if_flatpak": true}
+      },
+      "conditional_packages": [
+        {
+          "package": "v4l2loopback-dkms",
+          "source": "apt",
+          "requires_any": ["com.obsproject.Studio"],
+          "install_class": "optional",
+          "reason": "Necesario para cámara virtual en OBS"
+        }
+      ],
+      "post_actions": [
+        "configure_pipewire_for_low_latency",
+        "add_user_to_audio_groups",
+        "setup_obs_scenes_template",
+        "enable_hardware_encoding_if_gpu_supported"
+      ],
+      "gpu_acceleration": {
+        "encoders": {
+          "nvidia": ["h264_nvenc", "hevc_nvenc"],
+          "amd": ["h264_amf", "hevc_amf"],
+          "intel": ["h264_vaapi", "hevc_vaapi"]
+        }
+      }
+    },
+
+    "design_3d": {
+      "meta": {
+        "label": "Modelado 3D y CAD",
+        "description": "Herramientas para modelado, renderizado y diseño asistido",
+        "priority": "medium",
+        "recommended_for": ["3d_artist", "engineer", "architect"],
+        "install_order": 9
+      },
+      "packages": {
+        "flatpak": [
+          "org.blender.Blender",
+          "org.freecad.FreeCAD",
+          "org.openscad.OpenSCAD"
+        ],
+        "managers": [],
+        "docker": [],
+        "apt": {
+          "slicing_printing": [
+            "prusa-slicer", "cura", "meshlab", "cloudcompare"
+          ],
+          "libraries": [
+            "opencascade-tools", "libocct-data-exchange", "libocct-visualization"
+          ]
+        },
+        "third_party": []
+      },
+      "duplicate_handling": {
+        "apply_registry_rules": true,
+        "blender": {"skip_apt_if_flatpak": true},
+        "freecad": {"skip_apt_if_flatpak": true}
+      },
+      "gpu_requirements": {
+        "blender_cycles": {
+          "min_vram_gb": 4,
+          "preferred_backend": {"nvidia": "optix", "amd": "hip", "intel": "oneapi"}
+        }
+      },
+      "post_actions": [
+        "configure_blender_gpu_backend",
+        "install_additional_addons_if_requested",
+        "setup_freecad_opencascade_paths"
+      ]
+    },
+
+    "gaming": {
+      "meta": {
+        "label": "Gaming Nativo y Compatibilidad Windows",
+        "description": "Plataformas de juego, optimizaciones y capas de compatibilidad",
+        "priority": "high",
+        "recommended_for": ["gamer", "entertainment"],
+        "install_order": 10,
+        "preserves_legacy_options": true
+      },
+      "packages": {
+        "flatpak": [
+          "com.heroicgameslauncher.hgl",
+          "net.lutris.Lutris",
+          "net.davidotek.pupgui2",
+          "com.usebottles.bottles",
+          "org.freedesktop.Platform.VulkanLayer.MangoHud",
+          "org.freedesktop.Platform.VulkanLayer.gamescope",
+          "org.freedesktop.Platform.VulkanLayer.vkBasalt"
+        ],
+        "managers": [],
+        "docker": [],
+        "apt": {
+          "core_gaming": [
+            "steam",
+            "gamemode", "libgamemode0",
+            "gamescope", "mangohud", "vkbasalt",
+            "protontricks", "lutris"
+          ],
+          "graphics_runtime": [
+            "vulkan-tools", "mesa-utils", "mesa-vulkan-drivers",
+            "libvulkan1", "libvulkan1:i386",
+            "libgl1-mesa-dri", "libgl1-mesa-dri:i386",
+            "libglx-mesa0", "libglx-mesa0:i386"
+          ],
+          "wine_compat": [
+            "wine", "wine64", "wine32", "wine-gecko", "wine-mono",
+            "winetricks", "cabextract", "p7zip-full",
+            "libwine", "libwine:i386"
+          ],
+          "input_peripherals": [
+            "xpadneo-dkms", "inputplumber", "antimicrox",
+            "qjoypad", "libstrangle"
+          ],
+          "utilities": [
+            "preload", "zenity", "xdotool", "wmctrl", "scrot"
+          ]
+        },
+        "third_party": []
+      },
+      "duplicate_handling": {
+        "steam": {
+          "preferred": "apt",
+          "reason": "Mejor integración con drivers GPU y arquitectura i386",
+          "flatpak_alternative_available": true
+        },
+        "lutris": {
+          "prefer_flatpak": true,
+          "note": "Flatpak para aislamiento, apt si se requiere integración profunda con sistema"
+        }
+      },
+      "pre_actions": [
+        "enable_i386_architecture",
+        "add_steam_repository_if_not_present",
+        "update_package_lists"
+      ],
+      "post_actions": [
+        "configure_steam_proton_experimental",
+        "install_gpu_specific_gaming_drivers",
+        "optimize_sysctl_for_gaming",
+        "setup_gamemode_autostart",
+        "configure_gamescope_default_resolution",
+        "add_user_to_input_group_for_controllers"
+      ],
+      "gpu_profiles": {
+        "nvidia": {
+          "additional_packages_apt": ["nvidia-driver", "nvidia-vulkan-icd", "nvidia-vulkan-icd:i386"],
+          "env_vars": {
+            "__GL_SHADER_DISK_CACHE": "1",
+            "__GL_SHADER_DISK_CACHE_PATH": "/tmp/nvidia-cache",
+            "VK_ICD_FILENAMES": "/usr/share/vulkan/icd.d/nvidia_icd.json"
+          }
+        },
+        "amd": {
+          "additional_packages_apt": ["mesa-vulkan-drivers", "mesa-vulkan-drivers:i386", "firmware-amd-graphics", "libvulkan-radeon"],
+          "env_vars": {
+            "RADV_PERFTEST": "aco",
+            "VK_ICD_FILENAMES": "/usr/share/vulkan/icd.d/radeon_icd.x86_64.json"
+          }
+        },
+        "intel": {
+          "additional_packages_apt": ["mesa-vulkan-drivers", "intel-media-va-driver-non-free", "intel-opencl-icd"],
+          "env_vars": {
+            "VK_ICD_FILENAMES": "/usr/share/vulkan/icd.d/intel_icd.x86_64.json"
+          }
+        }
+      },
+      "sysctl_gaming": {
+        "vm.swappiness": "10",
+        "kernel.sched_latency_ns": "2000000",
+        "kernel.sched_min_granularity_ns": "1000000",
+        "net.core.netdev_max_backlog": "5000",
+        "net.core.rmem_max": "16777216",
+        "net.core.wmem_max": "16777216"
+      },
+      "conditional_packages": [
+        {
+          "package": "xpadneo-dkms",
+          "source": "apt",
+          "requires_any": ["bluetooth_adapter"],
+          "install_class": "optional",
+          "reason": "Mejor soporte para mandos Xbox vía Bluetooth"
+        },
+        {
+          "package": "nvidia-driver",
+          "source": "apt",
+          "requires_any": ["gpu_vendor:nvidia"],
+          "conflicts_with": ["nouveau", "firmware-misc-nonfree"],
+          "install_class": "conditional"
+        }
+      ]
+    },
+
+    "windows_compat": {
+      "meta": {
+        "label": "Compatibilidad con Herramientas Windows",
+        "description": "Wine, Bottles y utilidades para ejecutar software Windows",
+        "priority": "medium",
+        "recommended_for": ["gaming", "legacy_software", "enterprise_migration"],
+        "install_order": 11
+      },
+      "packages": {
+        "flatpak": [
+          "com.usebottles.bottles",
+          "com.github.Matoking.protontricks"
+        ],
+        "managers": [],
+        "docker": [],
+        "apt": [
+          "wine", "wine64", "wine32", "wine-gecko", "wine-mono",
+          "winetricks", "cabextract", "p7zip-full", "p7zip-rar",
+          "libvulkan1", "libvulkan1:i386",
+          "mesa-vulkan-drivers", "mesa-vulkan-drivers:i386",
+          "libgl1-mesa-dri", "libgl1-mesa-dri:i386",
+          "libasound2-plugins:i386", "libsane1:i386"
+        ],
+        "third_party": []
+      },
+      "duplicate_handling": {
+        "bottles": {"prefer_flatpak": true, "reason": "Gestión de prefixes aislados y actualizaciones automáticas"}
+      },
+      "pre_actions": [
+        "enable_i386_architecture",
+        "configure_wine_arch_to_win64"
+      ],
+      "post_actions": [
+        "install_wine_gecko_and_mono",
+        "configure_wine_prefix_defaults",
+        "setup_bottles_integration"
+      ],
+      "wine_tweaks": {
+        "default_windows_version": "win10",
+        "enable_esync": true,
+        "enable_fsync": true,
+        "dll_overrides": {"d3d11": "n,b", "d3d10": "n,b", "dxgi": "n,b"}
+      }
+    },
+
+    "virtualization": {
+      "meta": {
+        "label": "Virtualización y Contenedores",
+        "description": "Hypervisores, gestión de VMs y entornos aislados",
+        "priority": "medium",
+        "recommended_for": ["devops", "sysadmin", "security_researcher"],
+        "install_order": 12
+      },
+      "packages": {
+        "flatpak": [],
+        "managers": [],
+        "docker": {
+          "install_engine": true,
+          "install_compose": true,
+          "reference_images": {
+            "ubuntu": "ubuntu:22.04",
+            "debian": "debian:trixie",
+            "alpine": "alpine:latest"
+          }
+        },
+        "apt": {
+          "kvm_qemu": [
+            "qemu-kvm", "qemu-system-x86", "qemu-utils",
+            "libvirt-daemon-system", "libvirt-clients",
+            "virt-manager", "virtinst", "virt-viewer",
+            "bridge-utils", "dnsmasq-base", "ebtables"
+          ],
+          "utilities": [
+            "genisoimage", "sshpass", "cloud-image-utils", "packer",
+            "ansible", "terraform"
+          ]
+        },
+        "third_party": []
+      },
+      "conditional_packages": [
+        {
+          "package": "qemu-kvm",
+          "source": "apt",
+          "requires_any": ["cpu_features:vmx|svm", "ram_total_gb:>=8"],
+          "install_class": "conditional",
+          "reason": "Requiere virtualización por hardware y RAM suficiente"
+        }
+      ],
+      "exclusive_with": {
+        "virtualbox": {
+          "reason": "Elegir un hypervisor principal para evitar conflictos de kernel modules",
+          "recommendation": "usar_kvm_qemu_para_integracion_debian"
+        }
+      },
+      "post_actions": [
+        "add_user_to_kvm_and_libvirt_groups",
+        "enable_libvirtd_service",
+        "configure_default_virtual_network",
+        "setup_ssh_key_for_vms_if_requested",
+        "configure_docker_user_group"
+      ]
+    },
+
+    "remote_access": {
+      "meta": {
+        "label": "Acceso Remoto y Sincronización",
+        "description": "SSH, VNC, RDP, sincronización de archivos y tunneling",
+        "priority": "medium",
+        "recommended_for": ["sysadmin", "remote_worker", "support"],
+        "install_order": 13
+      },
+      "packages": {
+        "flatpak": [
+          "org.remmina.Remmina"
+        ],
+        "managers": [],
+        "docker": [],
+        "apt": {
+          "ssh": [
+            "openssh-server", "openssh-client", "sshuttle", "mosh",
+            "autossh", "keychain", "ssh-askpass-gnome"
+          ],
+          "remote_desktop": [
+            "tigervnc-standalone-server", "tigervnc-viewer",
+            "xrdp", "remmina", "remmina-plugin-rdp",
+            "remmina-plugin-vnc", "remmina-plugin-secret",
+            "freerdp2-x11"
+          ],
+          "file_sync": [
+            "rsync", "rclone", "syncthing", "lsyncd", "unison"
+          ],
+          "tunneling": [
+            "openvpn", "wireguard-tools", "network-manager-openvpn",
+            "network-manager-openvpn-gnome", "strongswan"
+          ],
+          "utilities": [
+            "lftp", "curl", "wget", "ncat", "socat", "screen", "tmux"
+          ]
+        },
+        "third_party": []
+      },
+      "duplicate_handling": {
+        "remmina": {"prefer_flatpak": true, "reason": "Plugins más actualizados, aislamiento de dependencias"}
+      },
+      "post_actions": [
+        "configure_ssh_server_hardening",
+        "generate_ed25519_ssh_key_if_not_exists",
+        "setup_syncthing_autostart_if_requested",
+        "configure_wireguard_interface_template"
+      ],
+      "security_notes": [
+        "Deshabilitar login root por SSH",
+        "Usar autenticación por clave en lugar de contraseña",
+        "Configurar fail2ban para proteger servicios expuestos"
+      ]
+    },
+
+    "cybersec": {
+      "meta": {
+        "label": "Evaluación de Ciberseguridad",
+        "description": "Herramientas de auditoría, pentesting y análisis forense",
+        "priority": "specialized",
+        "recommended_for": ["security_researcher", "pentester", "soc_analyst"],
+        "install_order": 14,
+        "requires_user_acknowledgment": true
+      },
+      "packages": {
+        "flatpak": [],
+        "managers": {
+          "pyenv": {
+            "install": true,
+            "note": "Para herramientas Python de seguridad en entornos aislados"
+          }
+        },
+        "docker": {
+          "install_engine": true,
+          "reference_images": {
+            "kali_tools": "kalilinux/kali-rolling",
+            "security_scanners": "aquasec/trivy:latest",
+            "network_analysis": "instrumentisto/nmap"
+          }
+        },
+        "apt": {
+          "reconnaissance": [
+            "nmap", "masscan", "theharvester", "recon-ng"
+          ],
+          "vulnerability": [
+            "nikto", "gobuster", "dirb", "wfuzz", "sqlmap"
+          ],
+          "exploitation": [
+            "john", "hashcat", "hydra", "medusa"
+          ],
+          "forensics": [
+            "sleuthkit", "volatility3", "binwalk", "foremost"
+          ],
+          "network_analysis": [
+            "wireshark", "tcpdump", "tshark", "ngrep",
+            "netcat-openbsd", "socat", "mitmproxy"
+          ],
+          "hardening_audit": [
+            "lynis", "tiger", "chkrootkit", "rkhunter",
+            "apparmor-utils", "auditd", "aide"
+          ],
+          "build_deps": [
+            "build-essential", "cmake", "libssl-dev", "libpcap-dev",
+            "libnet1-dev", "libgtk-3-dev", "libpq-dev"
+          ]
+        },
+        "third_party": {
+          "metasploit": {
+            "note": "Instalar desde repos oficial Rapid7 si se requiere versión más reciente que Debian",
+            "install_method": "curl_script",
+            "conditional": true
+          }
+        }
+      },
+      "post_actions": [
+        "configure_wireshark_non_root_capture",
+        "update_hashcat_rules_if_requested",
+        "setup_auditd_rules_for_security_monitoring",
+        "initialize_pyenv_for_security_tools"
+      ],
+      "legal_disclaimer": "Estas herramientas deben usarse únicamente en sistemas propios o con autorización explícita por escrito.",
+      "avoid_installing_via_apt": [
+        "python3-*"
+      ],
+      "notes": "Usar pyenv para herramientas Python de seguridad, Docker para entornos de pentesting aislados, APT solo para herramientas CLI nativas"
+    },
+
+    "communication": {
+      "meta": {
+        "label": "Comunicación y Colaboración",
+        "description": "Clientes de mensajería, videoconferencia y productividad en equipo",
+        "priority": "medium",
+        "recommended_for": ["all"],
+        "install_order": 15
+      },
+      "packages": {
+        "flatpak": [
+          "com.discordapp.Discord",
+          "com.slack.Slack",
+          "com.microsoft.Teams",
+          "us.zoom.Zoom",
+          "org.telegram.desktop",
+          "org.signal.Signal",
+          "md.obsidian.Obsidian",
+          "io.github.mimbrero.WhatsAppDesktop"
+        ],
+        "managers": [],
+        "docker": [],
+        "apt": [
+          "evolution", "geary"
+        ],
+        "third_party": []
+      },
+      "duplicate_handling": {
+        "apply_registry_rules": true,
+        "telegram": {"skip_apt_if_flatpak": true},
+        "signal": {"prefer_apt": true, "reason": "Mejor integración con notificaciones del sistema"},
+        "discord": {"prefer_flatpak": true}
+      },
+      "post_actions": [
+        "configure_default_email_client",
+        "setup_notification_permissions_flatpak"
+      ]
+    }
+  },
+
+  "usage_profiles": {
+    "general_desktop": {
+      "description": "Escritorio personal/oficina equilibrado",
+      "include_categories": [
+        "optimization_base",
+        "ux_ui_enhancement",
+        "workstation_ofimatica",
+        "communication"
+      ],
+      "optional_categories": ["remote_access"],
+      "exclude_categories": ["cybersec", "ai-ml", "design_3d", "dev_mobile"],
+      "flatpak_priority": true
+    },
+    "developer_fullstack": {
+      "description": "Desarrollador web/backend con contenedores",
+      "include_categories": [
+        "optimization_base",
+        "ux_ui_enhancement",
+        "dev_web",
+        "virtualization",
+        "communication"
+      ],
+      "optional_categories": ["ai-ml", "cybersec"],
+      "recommended_hardware": {"ram_min_gb": 16, "storage_min_gb": 100},
+      "use_managers_for_languages": true,
+      "use_docker_for_services": true,
+      "flatpak_priority": true
+    },
+    "data_scientist": {
+      "description": "Científico de datos / ML Engineer",
+      "include_categories": [
+        "optimization_base",
+        "ai-ml",
+        "dev_web",
+        "ux_ui_enhancement"
+      ],
+      "conditional_includes": [
+        {"category": "design_graphic", "if": "gpu_vram_gb >= 4"},
+        {"category": "virtualization", "if": "ram_total_gb >= 32"}
+      ],
+      "recommended_hardware": {"ram_min_gb": 32, "gpu_vram_min_gb": 8},
+      "use_pyenv_not_apt_python": true,
+      "use_docker_for_ml_services": true,
+      "flatpak_priority": false
+    },
+    "content_creator": {
+      "description": "Creador de contenido multimedia",
+      "include_categories": [
+        "optimization_base",
+        "design_graphic",
+        "design_video",
+        "ux_ui_enhancement",
+        "communication"
+      ],
+      "optional_categories": ["design_3d", "remote_access"],
+      "recommended_hardware": {"ram_min_gb": 16, "storage_min_gb": 500, "gpu_vram_min_gb": 6},
+      "flatpak_priority": true
+    },
+    "gaming_enthusiast": {
+      "description": "Gaming nativo + compatibilidad Windows",
+      "include_categories": [
+        "optimization_base",
+        "gaming",
+        "windows_compat",
+        "ux_ui_enhancement",
+        "communication"
+      ],
+      "optional_categories": ["remote_access"],
+      "pre_actions_global": ["enable_i386_architecture"],
+      "recommended_hardware": {"gpu_vendor": "any", "gpu_vram_min_gb": 4},
+      "steam_source": "apt",
+      "flatpak_priority": false
+    },
+    "security_professional": {
+      "description": "Auditoría y pruebas de seguridad",
+      "include_categories": [
+        "optimization_base",
+        "cybersec",
+        "virtualization",
+        "remote_access",
+        "dev_web"
+      ],
+      "requires_user_acknowledgment": true,
+      "recommended_hardware": {"ram_min_gb": 16, "storage_min_gb": 200},
+      "use_docker_for_isolated_tools": true,
+      "flatpak_priority": false
+    },
+    "minimal_server": {
+      "description": "Servidor headless esencial",
+      "include_categories": ["optimization_base"],
+      "apt_only": true,
+      "exclude_flatpak": true,
+      "exclude_gui": true,
+      "minimal_install": true
+    }
+  },
+
+  "post_action_library": {
+    "enable_i386_architecture": {
+      "command": "dpkg --print-foreign-architectures | grep -q i386 || (dpkg --add-architecture i386 && apt update)",
+      "category": ["gaming", "windows_compat"],
+      "idempotent": true,
+      "requires_sudo": true
+    },
+    "configure_gpu_drivers": {
+      "script": "detect_and_install_gpu_drivers.sh",
+      "category": ["gaming", "creator", "ai-ml"],
+      "gpu_specific": {
+        "nvidia": "install_nvidia_driver_and_32bit_libs",
+        "amd": "ensure_mesa_vulkan_and_firmware",
+        "intel": "install_intel_media_drivers"
+      },
+      "requires_sudo": true
+    },
+    "optimize_sysctl_gaming": {
+      "config_file": "/etc/sysctl.d/99-gaming.conf",
+      "content_template": "sysctl_gaming_template",
+      "category": ["gaming"],
+      "requires_sudo": true
+    },
+    "setup_ml_environment": {
+      "create_venv_with_pyenv": true,
+      "install_base_packages": ["pip", "setuptools", "wheel"],
+      "category": ["ai-ml"],
+      "requires_sudo": false
+    },
+    "enable_docker_user": {
+      "command": "usermod -aG docker $USER",
+      "requires_relogin": true,
+      "category": ["dev-web", "virtualization", "ai-ml", "cybersec"],
+      "requires_sudo": true
+    },
+    "configure_timeshift_auto": {
+      "schedule": "daily",
+      "retain_daily": 5,
+      "retain_weekly": 2,
+      "category": ["optimization_base"],
+      "requires_sudo": true
+    },
+    "initialize_nvm_with_defaults": {
+      "install_nvm": true,
+      "install_node_versions": ["18", "20"],
+      "set_default": "20",
+      "install_global_packages": ["npm", "yarn", "pnpm"],
+      "category": ["dev-web"],
+      "requires_sudo": false
+    },
+    "initialize_pyenv_with_default_python": {
+      "install_pyenv_deps": true,
+      "install_pyenv": true,
+      "install_python_versions": ["3.11"],
+      "set_global": "3.11",
+      "category": ["ai-ml", "cybersec"],
+      "requires_sudo": false
+    },
+    "dedupe_desktop_entries": {
+      "remove_apt_duplicates_if_flatpak_selected": true,
+      "scan_paths": ["/usr/share/applications", "~/.local/share/applications"],
+      "category": ["workstation_ofimatica", "design_graphic", "design_video"],
+      "requires_sudo": true
+    },
+    "update_flatpak_app_icons": {
+      "command": "update-desktop-database ~/.local/share/applications 2>/dev/null || true",
+      "category": ["all"],
+      "requires_sudo": false
+    }
+  },
+
+  "integrity_rules": {
+    "global_required_commands": ["bash", "apt", "dpkg", "systemctl", "curl", "wget", "flatpak"],
+    "category_specific": {
+      "ai_ml": {
+        "required_commands": ["python3", "pip3"],
+        "required_imports": ["numpy", "pandas", "sklearn"],
+        "verification_commands": [
+          "python3 -c 'import numpy; print(numpy.__version__)'",
+          "python3 -c 'import pandas; print(pandas.__version__)'"
+        ]
+      },
+      "gaming": {
+        "required_commands": ["gamemoderun", "gamescope", "mangohud"],
+        "required_libs_32bit": ["libvulkan1:i386", "libgl1-mesa-dri:i386"],
+        "verification_commands": [
+          "steam --version || echo 'Steam no instalado'",
+          "glxinfo -B | grep 'OpenGL renderer'",
+          "gamemoded -t"
+        ]
+      },
+      "virtualization": {
+        "required_modules": ["kvm", "kvm_intel|kvm_amd", "vhost_net"],
+        "required_groups": ["kvm", "libvirt", "docker"],
+        "verification_commands": [
+          "kvm-ok",
+          "virsh list --all",
+          "lsmod | grep kvm",
+          "docker run --rm hello-world"
+        ]
+      },
+      "dev_web": {
+        "required_managers": ["nvm"],
+        "required_commands": ["node", "npm", "docker", "kubectl"],
+        "verification_commands": [
+          "nvm --version",
+          "node -v",
+          "docker --version",
+          "kubectl version --client"
+        ]
+      }
+    },
+    "post_install_verification": {
+      "run_category_tests": true,
+      "log_results": true,
+      "fail_fast_on_critical": false,
+      "generate_report": true
+    }
+  },
+
+  "logging_and_audit": {
+    "log_file": "/var/log/debian-postinstall.log",
+    "log_level": "INFO",
+    "log_decisions": {
+      "package_source_selected": true,
+      "duplicate_blocked": true,
+      "capability_check_result": true,
+      "post_action_executed": true
+    },
+    "audit_trail": {
+      "enabled": true,
+      "include_timestamp": true,
+      "include_user": true,
+      "include_command": true
+    }
+  }
+}

@@ -7,12 +7,18 @@ Responsable actual: Karl + Copilot
 
 - Consolidar estabilidad de UX en XFCE para evitar bloqueos/suspensiones no deseadas.
 - Mantener paridad funcional entre flujo V1 y V2 para fixes criticos.
+- Validar en campo la nueva V3 (`install/check-fix/verify`) para ajustar reglas condicionales por hardware y codigos de salida operativos.
 - Extender capacidades tipo CRUD con mayor granularidad de seleccion y auditoria de integridad.
 - Afinar mapa de paquetes por categoria (gaming/diseno/ai) segun pruebas reales de hardware.
 - Verificar en campo la ejecucion de hooks declarativos `pre/post` de V1/V2 con hardware mixto.
 
 ## Completado recientemente
 
+- Se documenta de forma exhaustiva la arquitectura/operacion de V1, V2 y V3 en docs por version y se enlaza desde README.
+- Se agrega guia comparativa V1 vs V2 vs V3 con matriz de decision rapida en `docs/flows/VERSION-SELECTION.md`.
+- Se modernizo `post-install-v3.sh` con acciones `install`, `check-fix` y `verify`, validacion de catalogo, parseo robusto de paquetes APT y correccion de `dry-run` en `enable_i386_architecture`.
+- Se agrego accion `verify-category` en V3 con `--category` para auditoria puntual por categoria y mejor paridad con V2.
+- Se agrego opcion `--list-categories` en V3 para listar categorias del catalogo desde CLI.
 - Se agrego estrategia Flatpak-first para LibreOffice para mitigar apps duplicadas.
 - Se incorporaron fixes de energia y bloqueo en XFCE (xfconf + logind override).
 - Se agregaron paquetes de integracion UX relevantes (xfce4-goodies, pavucontrol, gvfs-backends, plugins de power manager).
@@ -33,6 +39,8 @@ Responsable actual: Karl + Copilot
 - Se agrego opcion de eliminacion de cron de mantenimiento en V1 y accion `remove-cron` en V2.
 - Se incorporaron `LICENSE` (CC BY 4.0) y `NOTICE` para garantizar atribucion del proyecto.
 - Se actualizo catalogo a `1.1.1` con metadata de repos externos opcionales para paquetes no presentes en fuentes base.
+- Se agregaron bundles `task_bundles.sys_admin` y `task_bundles.productivity_plus` en `config/app-library.json` para mantenimiento y productividad extendida.
+- Se preparo base `v3_optimized` en `config/app-library.json` con organizacion por `option_groups`/`usage_categories` y reglas de capacidad hardware para omitir paquetes no aplicables.
 - Menus de opciones/categorias en V1 y V2 ajustados a vista por columnas para reducir scroll.
 - Spinner de progreso recuperado en V2 para update/install/reinstall.
 - Hooks PRE/POST de V1 y acciones post de V2 optimizados para evitar ejecuciones no necesarias segun accion actual.

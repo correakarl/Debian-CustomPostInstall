@@ -1,5 +1,5 @@
 {
-  "version": "1.1.1",
+  "version": "1.1.3",
   "generated_for": "debian-13-trixie",
   "sources": {
     "apt": {
@@ -63,6 +63,179 @@
       "reason": "Evitar duplicados de menu y priorizar version mas actualizada."
     }
   ],
+  "task_bundles": {
+    "sys_admin": {
+      "essential_apt": [
+        "gparted",
+        "gnome-disk-utility",
+        "stacer",
+        "copyq",
+        "timeshift",
+        "gsmartcontrol"
+      ],
+      "gui_stores": [
+        "gnome-software",
+        "gnome-software-plugin-flatpak"
+      ],
+      "conditional_apt": [
+        {
+          "package": "gsmartcontrol",
+          "requires_any": ["smart_storage"],
+          "skip_reason": "No hay discos compatibles SMART detectados."
+        }
+      ],
+      "target_use": "Mantenimiento, observabilidad y recuperacion de desastres"
+    },
+    "productivity_plus": {
+      "essential_apt": ["flameshot", "pavucontrol", "blueman"],
+      "conditional_apt": [
+        {
+          "package": "blueman",
+          "requires_any": ["bluetooth_adapter"],
+          "skip_reason": "No hay adaptador Bluetooth detectado."
+        }
+      ],
+      "notes": "Flameshot para capturas con anotaciones, Blueman para mejor gestion de Bluetooth en XFCE"
+    }
+  },
+  "v3_optimized": {
+    "schema": "v3-optimized-1.0",
+    "status": "draft",
+    "design_goals": [
+      "organizar opciones por escenarios reales de uso",
+      "evitar instalaciones sin sentido por falta de hardware/capacidades",
+      "mantener compatibilidad con perfiles V1/V2 durante migracion"
+    ],
+    "install_policies": {
+      "skip_when_capability_missing": true,
+      "allow_manual_override": true,
+      "log_decision": true,
+      "default_install_class": "safe"
+    },
+    "capability_detectors": {
+      "bluetooth_adapter": {
+        "probe_commands": ["rfkill list bluetooth", "hciconfig -a"],
+        "fallback": "lspci -nn | grep -i bluetooth",
+        "description": "Adaptador Bluetooth presente"
+      },
+      "smart_storage": {
+        "probe_commands": ["lsblk -d -o NAME,TYPE", "smartctl --scan"],
+        "fallback": "test -e /dev/sda -o -e /dev/nvme0n1",
+        "description": "Disco local compatible con diagnostico SMART"
+      },
+      "optical_drive": {
+        "probe_commands": ["lsblk -S | grep -Ei 'rom|cd|dvd'", "wodim --devices"],
+        "fallback": "test -e /dev/sr0",
+        "description": "Unidad optica disponible (CD/DVD/BD)"
+      },
+      "battery_present": {
+        "probe_commands": ["ls /sys/class/power_supply/BAT*"],
+        "fallback": "upower -e | grep -i battery",
+        "description": "Equipo portatil con bateria"
+      },
+      "uefi_system": {
+        "probe_commands": ["test -d /sys/firmware/efi"],
+        "fallback": "efibootmgr -v",
+        "description": "Sistema iniciado en modo UEFI"
+      }
+    },
+    "package_constraints": [
+      {
+        "package": "blueman",
+        "requires_any": ["bluetooth_adapter"],
+        "install_class": "conditional",
+        "skip_reason": "Gestion Bluetooth no aplica sin adaptador."
+      },
+      {
+        "package": "gsmartcontrol",
+        "requires_any": ["smart_storage"],
+        "install_class": "conditional",
+        "skip_reason": "No hay disco SMART utilizable para monitoreo."
+      },
+      {
+        "package": "brasero",
+        "requires_any": ["optical_drive"],
+        "install_class": "conditional",
+        "skip_reason": "No hay unidad optica para grabacion de discos."
+      },
+      {
+        "package": "k3b",
+        "requires_any": ["optical_drive"],
+        "install_class": "conditional",
+        "skip_reason": "No hay unidad optica para autoria y grabacion."
+      },
+      {
+        "package": "tlp",
+        "requires_any": ["battery_present"],
+        "install_class": "conditional",
+        "skip_reason": "En desktop sin bateria, TLP puede no aportar beneficios."
+      }
+    ],
+    "option_groups": {
+      "maintenance_recovery": {
+        "summary": "Mantenimiento del sistema, particionado, backup y salud de disco.",
+        "apt": ["gparted", "gnome-disk-utility", "timeshift", "gsmartcontrol"],
+        "flatpak": [],
+        "default_selected": true,
+        "target_use": "soporte tecnico y recuperacion",
+        "related_capabilities": ["smart_storage"]
+      },
+      "observability_light": {
+        "summary": "Telemetria y diagnostico liviano para uso diario.",
+        "apt": ["stacer", "inxi", "smartmontools"],
+        "flatpak": [],
+        "default_selected": true,
+        "target_use": "inspeccion de estado y troubleshooting"
+      },
+      "desktop_productivity_plus": {
+        "summary": "Capturas, control de audio y utilidades de portapapeles/Bluetooth.",
+        "apt": ["flameshot", "pavucontrol", "copyq", "blueman"],
+        "flatpak": [],
+        "default_selected": true,
+        "target_use": "productividad en escritorio XFCE",
+        "related_capabilities": ["bluetooth_adapter"]
+      },
+      "software_store_gui": {
+        "summary": "Tienda grafica para gestion de apps APT/Flatpak.",
+        "apt": ["gnome-software", "gnome-software-plugin-flatpak"],
+        "flatpak": [],
+        "default_selected": false,
+        "target_use": "usuarios que prefieren interfaz grafica para apps"
+      },
+      "optical_media_tools": {
+        "summary": "Herramientas para grabacion y verificacion de discos opticos.",
+        "apt": ["brasero", "k3b"],
+        "flatpak": [],
+        "default_selected": false,
+        "target_use": "equipos con unidad CD/DVD/BD",
+        "related_capabilities": ["optical_drive"]
+      }
+    },
+    "usage_categories": {
+      "general_desktop": {
+        "recommended_groups": ["maintenance_recovery", "observability_light", "desktop_productivity_plus"],
+        "optional_groups": ["software_store_gui"],
+        "notes": "Perfil general para escritorio personal y oficina."
+      },
+      "support_technician": {
+        "recommended_groups": ["maintenance_recovery", "observability_light"],
+        "optional_groups": ["software_store_gui", "optical_media_tools"],
+        "notes": "Soporte tecnico, diagnostico y recuperacion."
+      },
+      "low_resource_desktop": {
+        "recommended_groups": ["maintenance_recovery"],
+        "optional_groups": ["desktop_productivity_plus"],
+        "notes": "Prioriza consumo bajo de RAM/CPU y evita extras no esenciales."
+      }
+    },
+    "migration_hints": {
+      "maps_existing_task_bundles": {
+        "sys_admin": ["maintenance_recovery", "observability_light", "software_store_gui"],
+        "productivity_plus": ["desktop_productivity_plus"]
+      },
+      "notes": "Estructura preparada para que V3 aplique filtros de capacidad antes de instalar."
+    }
+  },
   "category_classification": {
     "workstation": {
       "essential_apt": ["firefox-esr", "thunderbird", "gedit"],
