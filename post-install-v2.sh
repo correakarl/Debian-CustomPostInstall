@@ -106,42 +106,61 @@ EOF
 
 parse_args() {
   local force_interactive=false
+  require_option_value() {
+    local opt_name="$1"
+    local opt_value="${2:-}"
+    if [[ -z "${opt_value}" || "${opt_value}" == --* ]]; then
+      log "ERROR" "La opcion ${opt_name} requiere un valor"
+      usage
+      exit 1
+    fi
+  }
+
   CATEGORY="${CATEGORY:-}"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --action)
+        require_option_value "$1" "${2:-}"
         ACTION="$2"
         shift 2
         ;;
       --profile)
+        require_option_value "$1" "${2:-}"
         PROFILE="$2"
         shift 2
         ;;
       --category)
+        require_option_value "$1" "${2:-}"
         CATEGORY="$2"
         shift 2
         ;;
       --ai-bundles)
+        require_option_value "$1" "${2:-}"
         AI_BUNDLES="$2"
         shift 2
         ;;
       --catalog-json)
+        require_option_value "$1" "${2:-}"
         APP_CATALOG_JSON="$2"
         shift 2
         ;;
       --gpu-profile)
+        require_option_value "$1" "${2:-}"
         GPU_PROFILE="$2"
         shift 2
         ;;
       --gpu-purpose)
+        require_option_value "$1" "${2:-}"
         GPU_PURPOSE="$2"
         shift 2
         ;;
       --mode)
+        require_option_value "$1" "${2:-}"
         INSTALL_MODE="$2"
         shift 2
         ;;
       --profile-json)
+        require_option_value "$1" "${2:-}"
         PROFILE_JSON="$2"
         shift 2
         ;;

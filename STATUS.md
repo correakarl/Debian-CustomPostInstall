@@ -14,6 +14,11 @@ Responsable actual: Karl + Copilot
 
 ## Completado recientemente
 
+- V2 corrige parseo CLI en opciones con valor: si falta argumento (ej. `--catalog-json`), ahora devuelve error guiado y ayuda en lugar de fallar por `variable sin asignar`.
+- V3 corrige ejecucion no deseada por cascada de categorias: cuando se usa `--category` en `install`, `check-fix` o `verify`, ahora se filtra a una sola categoria del perfil en lugar de ejecutar todas.
+- V3 permite ejecutar una categoria valida fuera del perfil actual cuando se solicita explicitamente con `--category` (con advertencia), evitando abortos innecesarios en ejecucion puntual por categoria.
+- V3 fortalece `check-fix` en APT: aplica aliases Debian para paquetes no instalables por nombre (`ionice`/`journalctl`/`cpupower-utils`), omite paquetes no disponibles con trazabilidad `[REPO:MISSING]` y mapea `enable_fwupd_refresh_timer` en post-acciones.
+- V3 evita instalaciones duplicadas cruzadas entre APT y Flatpak por categoria (si ya existe equivalente instalado por una fuente, omite la otra).
 - Se documenta de forma exhaustiva la arquitectura/operacion de V1, V2 y V3 en docs por version y se enlaza desde README.
 - Se agrega guia comparativa V1 vs V2 vs V3 con matriz de decision rapida en `docs/flows/VERSION-SELECTION.md`.
 - Se modernizo `post-install-v3.sh` con acciones `install`, `check-fix` y `verify`, validacion de catalogo, parseo robusto de paquetes APT y correccion de `dry-run` en `enable_i386_architecture`.

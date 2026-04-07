@@ -382,14 +382,14 @@
           "optimization": [
             "zram-tools", "earlyoom", "ananicy-cpp", "irqbalance",
             "tlp", "thermald", "profile-sync-daemon", "preload",
-            "ionice", "cpupower-utils"
+            "util-linux", "linux-cpupower"
           ],
           "monitoring": [
             "htop", "btop", "glances", "nvtop", "sysstat", "iotop", "iftop", "nethogs"
           ],
           "administration": [
             "gparted", "gnome-disk-utility", "timeshift", "smartmontools",
-            "fwupd", "logrotate", "systemd-coredump", "journalctl"
+            "fwupd", "logrotate", "systemd-coredump", "systemd"
           ],
           "security_base": [
             "ufw", "fail2ban", "apparmor", "apparmor-utils",
@@ -1555,7 +1555,7 @@
   },
 
   "logging_and_audit": {
-    "log_file": "/var/log/debian-postinstall.log",
+    "log_file": "./.runtime-logs/debian-postinstall.log",
     "log_level": "INFO",
     "log_decisions": {
       "package_source_selected": true,

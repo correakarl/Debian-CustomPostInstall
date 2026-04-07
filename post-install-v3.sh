@@ -33,7 +33,7 @@ Uso:
 Opciones:
     --action <tipo>        install | check-fix | verify | verify-category
   --profile <nombre>     Perfil del catalogo v2
-    --category <nombre>    Categoria para accion verify-category
+    --category <nombre>    Categoria especifica (obligatoria en verify-category; filtro opcional en install/check-fix/verify)
   --catalog-json <ruta>  Ruta al catalogo JSON (app-library-v2.json)
   --dry-run              Simula cambios
   --list-profiles        Muestra perfiles disponibles
@@ -256,28 +256,143 @@ check_capability() {
     return 1
 }
 
-is_duplicate_blocked() {
+normalize_token() {
+    local raw="$1"
+    echo "$raw" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]'
+}
+
+flatpak_app_installed() {
+    local app_id="$1"
+    command -v flatpak &>/dev/null || return 1
+    flatpak list --app --columns=application 2>/dev/null | grep -q "^${app_id}$"
+}
+
+apt_pattern_matches_pkg() {
+    local pattern="$1"
+    local pkg="$2"
+    [[ "$pkg" == $pattern ]]
+}
+
+apt_pattern_installed() {
+    local pattern="$1"
+    if [[ "$pattern" == *"*"* ]]; then
+        local regex="${pattern//./\\.}"
+        regex="${regex//\*/.*}"
+        dpkg-query -W -f='${Package}\n' 2>/dev/null | grep -Eq "^${regex}$"
+        return $?
+    fi
+    dpkg -s "$pattern" >/dev/null 2>&1
+}
+
+app_looks_like_pkg() {
+    local app_id="$1"
+    local pkg="$2"
+    local app_tail="${app_id##*.}"
+    local app_norm pkg_norm
+    app_norm="$(normalize_token "$app_tail")"
+    pkg_norm="$(normalize_token "$pkg")"
+
+    [[ -n "$pkg_norm" && ${#pkg_norm} -ge 4 ]] || return 1
+    [[ "$app_norm" == "$pkg_norm" || "$app_norm" == *"$pkg_norm"* || "$pkg_norm" == *"$app_norm"* ]]
+}
+
+find_installed_flatpak_equivalent_for_apt() {
     local pkg="$1"
-    local source="$2"
+    local category="$2"
 
     command -v flatpak &>/dev/null || return 1
 
-    local registry_keys
-    registry_keys=$(jq -r '.duplicate_registry | keys[]?' "$CATALOG_FILE" 2>/dev/null) || return 1
+    local entry_b64 entry flatpak_id
+    while IFS= read -r entry_b64; do
+        [[ -z "$entry_b64" ]] && continue
+        entry="$(echo "$entry_b64" | base64 -d 2>/dev/null)"
+        flatpak_id="$(echo "$entry" | jq -r '.value.flatpak // empty' 2>/dev/null)"
+        [[ -z "$flatpak_id" ]] && continue
+        flatpak_app_installed "$flatpak_id" || continue
 
-    local key
-    for key in $registry_keys; do
-        local preferred
-        preferred=$(jq -r ".duplicate_registry.${key}.preferred" "$CATALOG_FILE" 2>/dev/null) || continue
-        if [[ "$source" == "apt" && "$preferred" == "flatpak" ]]; then
-            local flatpak_id
-            flatpak_id=$(jq -r ".duplicate_registry.${key}.flatpak // empty" "$CATALOG_FILE" 2>/dev/null)
-            if [[ -n "$flatpak_id" ]] && flatpak list --app --columns=application 2>/dev/null | grep -q "^${flatpak_id}$"; then
-                log "INFO" "Omitiendo APT '$pkg' (equivalente Flatpak '$flatpak_id' instalado)"
+        local apt_pattern
+        while IFS= read -r apt_pattern; do
+            [[ -z "$apt_pattern" ]] && continue
+            if apt_pattern_matches_pkg "$apt_pattern" "$pkg"; then
+                echo "$flatpak_id"
                 return 0
             fi
+        done < <(echo "$entry" | jq -r '.value.apt[]? // empty' 2>/dev/null)
+    done < <(jq -r '(.duplicate_registry.entries // (.duplicate_registry | del(.description))) | to_entries[]? | @base64' "$CATALOG_FILE" 2>/dev/null)
+
+    local app
+    while IFS= read -r app; do
+        [[ -z "$app" ]] && continue
+        flatpak_app_installed "$app" || continue
+        if app_looks_like_pkg "$app" "$pkg"; then
+            echo "$app"
+            return 0
         fi
-    done
+    done < <(jq -r --arg c "$category" '.categories[$c].packages.flatpak[]?' "$CATALOG_FILE" 2>/dev/null)
+
+    return 1
+}
+
+find_installed_apt_equivalent_for_flatpak() {
+    local app_id="$1"
+    local category="$2"
+
+    local entry_b64 entry flatpak_id
+    while IFS= read -r entry_b64; do
+        [[ -z "$entry_b64" ]] && continue
+        entry="$(echo "$entry_b64" | base64 -d 2>/dev/null)"
+        flatpak_id="$(echo "$entry" | jq -r '.value.flatpak // empty' 2>/dev/null)"
+        [[ "$flatpak_id" == "$app_id" ]] || continue
+
+        local apt_pattern
+        while IFS= read -r apt_pattern; do
+            [[ -z "$apt_pattern" ]] && continue
+            if apt_pattern_installed "$apt_pattern"; then
+                echo "$apt_pattern"
+                return 0
+            fi
+        done < <(echo "$entry" | jq -r '.value.apt[]? // empty' 2>/dev/null)
+    done < <(jq -r '(.duplicate_registry.entries // (.duplicate_registry | del(.description))) | to_entries[]? | @base64' "$CATALOG_FILE" 2>/dev/null)
+
+    local apt_pkg resolved_pkg
+    while IFS= read -r apt_pkg; do
+        [[ -z "$apt_pkg" ]] && continue
+        resolved_pkg="$(resolve_apt_package_name "$apt_pkg")"
+        dpkg -s "$resolved_pkg" >/dev/null 2>&1 || continue
+        if app_looks_like_pkg "$app_id" "$resolved_pkg"; then
+            echo "$resolved_pkg"
+            return 0
+        fi
+    done < <(collect_apt_packages "$category")
+
+    return 1
+}
+
+is_duplicate_blocked() {
+    local item="$1"
+    local source="$2"
+    local category="$3"
+
+    if [[ "$source" == "apt" ]]; then
+        local flatpak_equiv
+        flatpak_equiv="$(find_installed_flatpak_equivalent_for_apt "$item" "$category" || true)"
+        if [[ -n "$flatpak_equiv" ]]; then
+            log "INFO" "Omitiendo APT '$item' (equivalente Flatpak '$flatpak_equiv' ya instalado)"
+            return 0
+        fi
+        return 1
+    fi
+
+    if [[ "$source" == "flatpak" ]]; then
+        local apt_equiv
+        apt_equiv="$(find_installed_apt_equivalent_for_flatpak "$item" "$category" || true)"
+        if [[ -n "$apt_equiv" ]]; then
+            log "INFO" "Omitiendo Flatpak '$item' (equivalente APT '$apt_equiv' ya instalado)"
+            return 0
+        fi
+        return 1
+    fi
+
     return 1
 }
 
@@ -347,6 +462,8 @@ install_flatpak() {
     log "INFO" "[1/4] Flatpak para $category..."
     local app
     for app in $apps; do
+        is_duplicate_blocked "$app" "flatpak" "$category" && continue
+
         if flatpak list --app --columns=application 2>/dev/null | grep -q "^${app}$"; then
             ((CHECK_PRESENT_TOTAL++)) || true
             log "DEBUG" "Ya instalado: $app"
@@ -472,6 +589,29 @@ collect_apt_packages() {
     ' "$CATALOG_FILE" 2>/dev/null || true
 }
 
+resolve_apt_package_name() {
+    local pkg="$1"
+    case "$pkg" in
+        ionice)
+            echo "util-linux"
+            ;;
+        journalctl)
+            echo "systemd"
+            ;;
+        cpupower-utils)
+            echo "linux-cpupower"
+            ;;
+        *)
+            echo "$pkg"
+            ;;
+    esac
+}
+
+apt_package_available() {
+    local pkg="$1"
+    apt-cache show "$pkg" >/dev/null 2>&1
+}
+
 conditional_package_matches() {
     local category="$1"
     local pkg="$2"
@@ -498,20 +638,30 @@ install_apt() {
     all_pkgs="$(collect_apt_packages "$category")"
     cond_pkgs=$(jq -r --arg c "$category" '.categories[$c].conditional_packages[]? | select(.source == "apt") | .package' "$CATALOG_FILE" 2>/dev/null) || true
 
-    local pkg
-    for pkg in $all_pkgs $cond_pkgs; do
-        [[ -z "$pkg" ]] && continue
+    local pkg source_pkg
+    for source_pkg in $all_pkgs $cond_pkgs; do
+        [[ -z "$source_pkg" ]] && continue
+        pkg="$(resolve_apt_package_name "$source_pkg")"
 
-        if [[ " $cond_pkgs " == *" $pkg "* ]] && ! conditional_package_matches "$category" "$pkg"; then
-            log "DEBUG" "Omitiendo $pkg (requisitos no cumplidos)"
+        if [[ " $cond_pkgs " == *" $source_pkg "* ]] && ! conditional_package_matches "$category" "$source_pkg"; then
+            log "DEBUG" "Omitiendo $source_pkg (requisitos no cumplidos)"
             continue
         fi
 
-        is_duplicate_blocked "$pkg" "apt" && continue
+        if [[ "$source_pkg" != "$pkg" ]]; then
+            log "DEBUG" "Alias APT aplicado: $source_pkg -> $pkg"
+        fi
+
+        is_duplicate_blocked "$pkg" "apt" "$category" && continue
 
         if dpkg -s "$pkg" >/dev/null 2>&1; then
             ((CHECK_PRESENT_TOTAL++)) || true
             log "DEBUG" "Ya instalado: $pkg"
+            continue
+        fi
+
+        if ! apt_package_available "$pkg"; then
+            log "WARN" "[REPO:MISSING] Omitiendo APT no disponible en repos: $pkg (origen: $source_pkg)"
             continue
         fi
 
@@ -579,6 +729,9 @@ run_post_actions() {
             setup_timeshift_auto_snapshots)
                 [[ "$DRY_RUN" == "true" ]] || $SUDO_CMD systemctl enable --now timeshift.timer >/dev/null 2>&1 || true
                 ;;
+            enable_fwupd_refresh_timer)
+                [[ "$DRY_RUN" == "true" ]] || $SUDO_CMD systemctl enable --now fwupd-refresh.timer >/dev/null 2>&1 || true
+                ;;
             configure_steam_proton_experimental)
                 log "INFO" "Configurar Proton en Steam de forma manual (Settings -> Compatibility)"
                 ;;
@@ -607,6 +760,25 @@ process_profile() {
             log "ERROR" "Categoria '$CATEGORY' no existe. Disponibles: $(list_categories | tr '\n' ' ')"
             return 1
         fi
+        categories="$CATEGORY"
+    elif [[ -n "$CATEGORY" ]]; then
+        if ! category_exists "$CATEGORY"; then
+            log "ERROR" "Categoria '$CATEGORY' no existe. Disponibles: $(list_categories | tr '\n' ' ')"
+            return 1
+        fi
+
+        local profile_categories
+        profile_categories="$(collect_profile_categories)"
+        if [[ -z "$profile_categories" ]]; then
+            log "ERROR" "Perfil '$PROFILE' no existe. Disponibles: $(list_profiles | tr '\n' ' ')"
+            return 1
+        fi
+
+        if ! echo "$profile_categories" | grep -Fxq "$CATEGORY"; then
+            log "WARN" "La categoria '$CATEGORY' no pertenece al perfil '$PROFILE'; se ejecutara de forma puntual por solicitud explicita"
+        fi
+
+        log "INFO" "Filtro por categoria activo: $CATEGORY"
         categories="$CATEGORY"
     else
         categories="$(collect_profile_categories)"

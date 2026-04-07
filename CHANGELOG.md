@@ -72,6 +72,15 @@ Formato basado en Keep a Changelog y versionado semantico (SemVer).
 - V1 reduce duplicidad interna de matrices en procesos de install/check/remove/verify usando registro unificado de modulos.
 - V2 centraliza listado de categorias en una sola constante para reducir divergencias.
 
+### Fixed
+- V2: `parse_args` ahora valida opciones que requieren valor (`--catalog-json`, `--profile`, etc.) y muestra error de uso en lugar de abortar con `variable sin asignar` cuando falta el argumento.
+- V3: `--category` ahora tambien filtra ejecucion en `install`, `check-fix` y `verify` (no solo en `verify-category`), evitando que se procesen categorias adicionales del perfil cuando se solicita una categoria puntual.
+- V3: cuando se usa `--category` explicita en `install`, `check-fix` o `verify`, se permite ejecutar categorias validas aunque no pertenezcan al `--profile` actual (se registra advertencia en log en lugar de abortar).
+- V3: `check-fix` ahora resuelve aliases de paquetes APT no instalables en Debian (`ionice`->`util-linux`, `journalctl`->`systemd`, `cpupower-utils`->`linux-cpupower`) y omite con traza `[REPO:MISSING]` los paquetes no disponibles en repos, evitando falsos fallos de instalacion.
+- V3: se mapea la post-accion `enable_fwupd_refresh_timer` para eliminar advertencias de accion no implementada en `optimization_base`.
+- Catalogo V3 (`config/app-library-v2.json`): se corrigen paquetes de `optimization_base` para Debian Trixie (`util-linux`, `linux-cpupower`, `systemd`).
+- V3: deduplicacion cruzada APT/Flatpak en ambos sentidos por categoria (registro de duplicados + heuristica de equivalencia), para evitar instalar una app por una fuente cuando ya existe su equivalente en la otra.
+
 ### Docs
 - Se crea documentacion exhaustiva por version: [docs/v1/ARCHITECTURE.md](docs/v1/ARCHITECTURE.md), [docs/v2/ARCHITECTURE.md](docs/v2/ARCHITECTURE.md) y [docs/v3/ARCHITECTURE.md](docs/v3/ARCHITECTURE.md).
 - Se agrega guia operativa comparativa [docs/flows/VERSION-SELECTION.md](docs/flows/VERSION-SELECTION.md) con matriz de decision rapida V1/V2/V3.
